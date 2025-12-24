@@ -1,41 +1,78 @@
 'use server';
 
 import OpenAI, { AzureOpenAI } from 'openai';
+import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity";
 import { LLMConfig } from "@/store/useProjectStore";
 
-// ## FONCTION 1 : TEST DE CONNEXION SIMPLE (INCHANGÉE) ##
+// Fonction helper pour créer un client Azure OpenAI avec support Entra ID
+function createAzureOpenAIClient(config: LLMConfig) {
+  const { endpoint, apiKey, apiVersion, deployment } = config;
+  
+  // Si pas de clé API, utiliser l'authentification Entra ID
+  if (!apiKey || apiKey === '') {
+    const credential = new DefaultAzureCredential();
+    const azureADTokenProvider = getBearerTokenProvider(
+      credential,
+      "https://cognitiveservices.azure.com/.default"
+    );
+    return new AzureOpenAI({ 
+      endpoint, 
+      apiVersion, 
+      deployment,
+      azureADTokenProvider
+    });
+  }
+  
+  // Sinon, utiliser l'authentification par clé API
+  return new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
+}
+
+// ## FONCTION 1 : TEST DE CONNEXION SIMPLE ##
 export async function testLLMConnection(config: LLMConfig) {
   if (config.provider !== 'Azure OpenAI') {
     if (config.apiKey.length > 5) return { success: true, message: `Connexion simulée pour ${config.provider} réussie.`};
     return { success: false, message: "Fournisseur non supporté pour un test réel."}
   }
-  const { endpoint, apiKey, apiVersion, deployment } = config;
-  if (!endpoint || !apiKey || !apiVersion || !deployment) return { success: false, message: "Tous les paramètres sont requis pour Azure." };
+  const { endpoint, apiVersion, deployment } = config;
+  if (!endpoint || !apiVersion || !deployment) return { success: false, message: "Endpoint, API version et deployment sont requis pour Azure." };
+  
   try {
-    const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
+    const client = createAzureOpenAIClient(config);
     await client.chat.completions.create({
+      model: deployment,
       messages: [{ role: "system", content: "Test connection." }],
       max_completion_tokens: 5,
     });
     return { success: true, message: "Connexion à Azure OpenAI réussie !" };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
+    
+    // Message d'erreur plus détaillé pour le 403
+    if (errorMessage.includes('403') || errorMessage.includes('authentication')) {
+      return { 
+        success: false, 
+        message: `Erreur d'authentification : ${errorMessage}. Vérifiez que l'authentification par clé API est activée ou utilisez Entra ID.` 
+      };
+    }
+    
     return { success: false, message: `La connexion a échoué : ${errorMessage}` };
   }
 }
 
-// ## FONCTION 2 : DÉBOGAGE DE CONNEXION AVANCÉ (INCHANGÉE) ##
+// ## FONCTION 2 : DÉBOGAGE DE CONNEXION AVANCÉ ##
 export async function debugAzureConnection(config: LLMConfig): Promise<{ success: boolean; logs: string[] }> {
   'use server';
   const logs: string[] = [];
+  const { deployment } = config;
   const log = (message: string) => logs.push(`[${new Date().toLocaleTimeString('fr-FR')}] ${message}`);
   log("Début du test de débogage...");
   try {
     log("Initialisation du client AzureOpenAI...");
-    const client = new AzureOpenAI({ ...config, timeout: 20000 });
+    const client = createAzureOpenAIClient(config);
     log("Client initialisé avec succès.");
     log("Envoi d'un message de test...");
     const response = await client.chat.completions.create({
+      model: deployment,
       messages: [{ role: "user", content: "Quelle est la capitale de la France ?" }],
       max_completion_tokens: 50,
     });
@@ -125,7 +162,11 @@ export async function generateSingleLLMResponse(
         const completionPayload: Record<string, unknown> = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }] };
 
         switch(config.provider) {
-          case 'Azure OpenAI': client = new AzureOpenAI({ ...config }); modelName = config.deployment; completionPayload.max_completion_tokens = 4096; break;
+          case 'Azure OpenAI': 
+            client = createAzureOpenAIClient(config); 
+            modelName = config.deployment; 
+            completionPayload.max_completion_tokens = 4096; 
+            break;
           case 'OpenAI': client = new OpenAI({ apiKey: config.apiKey, timeout: 60 * 1000 }); modelName = 'gpt-4o'; completionPayload.max_tokens = 4096; break;
           case 'Anthropic':
             client = new OpenAI({
@@ -146,7 +187,7 @@ export async function generateSingleLLMResponse(
         completionPayload.model = modelName;
         log(`  [${config.provider}] Envoi de la requête à l'API...`);
         const apiStartTime = performance.now();
-        const response = await client.chat.completions.create(completionPayload);
+        const response = await client.chat.completions.create(completionPayload as any);
         const apiEndTime = performance.now();
         log(`  [${config.provider}] Réponse reçue en ${Math.round(apiEndTime - apiStartTime)}ms.`);
         
