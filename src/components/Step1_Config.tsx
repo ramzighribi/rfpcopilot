@@ -20,13 +20,17 @@ export function Step1_Config() {
   const { llmConfigs, addLlmConfig, updateLlmConfig, removeLlmConfig, loadLlmConfigs } = useProjectStore();
   const [testStatus, setTestStatus] = useState<Record<string, 'testing' | 'success' | 'error' | 'idle'>>({});
   const [debugState, setDebugState] = useState<{ isLoading: boolean; logs: string[] }>({ isLoading: false, logs: [] });
+  const [azureAuthModes, setAzureAuthModes] = useState<Record<string, 'apiKey' | 'entraId'>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleTestConnection = async (configId: string, index: number) => {
     setTestStatus(prev => ({ ...prev, [configId]: 'testing' }));
-    const config = llmConfigs[index];
+    const config = { ...llmConfigs[index] };
+    // Si Azure OpenAI et mode Entra ID, on vide la clé API
+    if (config.provider === 'Azure OpenAI' && azureAuthModes[configId] === 'entraId') {
+      config.apiKey = '';
+    }
     const result = await testLLMConnection(config);
-
     if (result.success) {
       updateLlmConfig(index, { isValidated: true });
       setTestStatus(prev => ({ ...prev, [configId]: 'success' }));
@@ -102,8 +106,25 @@ export function Step1_Config() {
 
             {config.provider === 'Azure OpenAI' && (
               <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Méthode d'authentification</label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={azureAuthModes[config.id] !== 'entraId' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setAzureAuthModes(m => ({ ...m, [config.id]: 'apiKey' }))}
+                    >API Key</Button>
+                    <Button
+                      variant={azureAuthModes[config.id] === 'entraId' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setAzureAuthModes(m => ({ ...m, [config.id]: 'entraId' }))}
+                    >Azure Entra ID</Button>
+                  </div>
+                </div>
                 <div className="space-y-2"><label className="text-sm font-medium">Endpoint URL</label><Input placeholder="https://..." value={config.endpoint} onChange={(e) => updateLlmConfig(index, { endpoint: e.target.value })} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium">Clé API</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
+                {azureAuthModes[config.id] !== 'entraId' && (
+                  <div className="space-y-2"><label className="text-sm font-medium">Clé API</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><label className="text-sm font-medium">API Version</label><Input placeholder="2025-01-01-preview" value={config.apiVersion} onChange={(e) => updateLlmConfig(index, { apiVersion: e.target.value })} /></div>
                   <div className="space-y-2"><label className="text-sm font-medium">Deployment Name</label><Input placeholder="gpt-5-miniRGH" value={config.deployment} onChange={(e) => updateLlmConfig(index, { deployment: e.target.value })} /></div>
@@ -155,4 +176,3 @@ export function Step1_Config() {
     </div>
   );
 }
-
