@@ -1,29 +1,14 @@
 'use server';
 
 import OpenAI, { AzureOpenAI } from 'openai';
-import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity";
 import { LLMConfig } from "@/store/useProjectStore";
 
-// Fonction helper pour créer un client Azure OpenAI avec support Entra ID
+// Fonction helper pour créer un client Azure OpenAI
 function createAzureOpenAIClient(config: LLMConfig) {
   const { endpoint, apiKey, apiVersion, deployment } = config;
   
-  // Si pas de clé API, utiliser l'authentification Entra ID
-  if (!apiKey || apiKey === '') {
-    const credential = new DefaultAzureCredential();
-    const azureADTokenProvider = getBearerTokenProvider(
-      credential,
-      "https://cognitiveservices.azure.com/.default"
-    );
-    return new AzureOpenAI({ 
-      endpoint, 
-      apiVersion, 
-      deployment,
-      azureADTokenProvider
-    });
-  }
-  
-  // Sinon, utiliser l'authentification par clé API
+  // Pour l'instant, on utilise uniquement l'authentification par clé API
+  // L'authentification Entra ID sera ajoutée dans une version ultérieure
   return new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
 }
 
