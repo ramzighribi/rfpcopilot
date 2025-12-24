@@ -18,8 +18,9 @@ export async function testLLMConnection(config: LLMConfig) {
       max_completion_tokens: 5,
     });
     return { success: true, message: "Connexion à Azure OpenAI réussie !" };
-  } catch (error: any) {
-    return { success: false, message: `La connexion a échoué : ${error.message}` };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
+    return { success: false, message: `La connexion a échoué : ${errorMessage}` };
   }
 }
 
@@ -27,7 +28,6 @@ export async function testLLMConnection(config: LLMConfig) {
 export async function debugAzureConnection(config: LLMConfig): Promise<{ success: boolean; logs: string[] }> {
   'use server';
   const logs: string[] = [];
-  const { endpoint, apiKey, apiVersion, deployment } = config;
   const log = (message: string) => logs.push(`[${new Date().toLocaleTimeString('fr-FR')}] ${message}`);
   log("Début du test de débogage...");
   try {
@@ -56,9 +56,10 @@ export async function debugAzureConnection(config: LLMConfig): Promise<{ success
     }
     log("⚠️ AVERTISSEMENT: La structure de la réponse est inattendue.");
     return { success: false, logs };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log("❌ ERREUR CRITIQUE PENDANT L'APPEL API.");
-    log(`Message: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    log(`Message: ${errorMessage}`);
     return { success: false, logs };
   }
 }
@@ -67,8 +68,8 @@ export async function debugAzureConnection(config: LLMConfig): Promise<{ success
 export async function generateSingleLLMResponse(
   question: string,
   llmConfigs: LLMConfig[],
-  generationParams: Record<string, any>
-): Promise<{ result: any, logs: string[] }> {
+  generationParams: Record<string, string>
+): Promise<{ result: Record<string, string>, logs: string[] }> {
   'use server';
 
   const logs: string[] = [];
@@ -79,7 +80,7 @@ export async function generateSingleLLMResponse(
   const validatedConfigs = llmConfigs.filter(c => c.isValidated);
   if (validatedConfigs.length === 0) throw new Error("Aucun LLM n'a été validé.");
 
-  const rowResult: any = { question: question, status: 'Refusée' };
+  const rowResult: Record<string, string> = { question: question, status: 'Refusée' };
 
   let lengthInstruction = '';
   switch (generationParams.responseLength) {
@@ -121,7 +122,7 @@ export async function generateSingleLLMResponse(
       } else {
         let client: OpenAI | AzureOpenAI;
         let modelName: string;
-        const completionPayload: any = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }] };
+        const completionPayload: Record<string, unknown> = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }] };
 
         switch(config.provider) {
           case 'Azure OpenAI': client = new AzureOpenAI({ ...config }); modelName = config.deployment; completionPayload.max_completion_tokens = 4096; break;
@@ -157,8 +158,9 @@ export async function generateSingleLLMResponse(
           rowResult[config.provider] = `ERREUR: Réponse vide. Raison: ${choice?.finish_reason || 'inconnue'}.`;
         }
       }
-    } catch (error: any) {
-      rowResult[config.provider] = `ERREUR: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      rowResult[config.provider] = `ERREUR: ${errorMessage}`;
     }
     const providerEndTime = performance.now();
     log(`  [${config.provider}] Traitement terminé en ${Math.round(providerEndTime - providerStartTime)}ms.`);
