@@ -1,0 +1,172 @@
+'use server';
+
+import OpenAI, { AzureOpenAI } from 'openai';
+import { LLMConfig } from "@/store/useProjectStore";
+
+// ## FONCTION 1 : TEST DE CONNEXION SIMPLE (INCHANGÉE) ##
+export async function testLLMConnection(config: LLMConfig) {
+  if (config.provider !== 'Azure OpenAI') {
+    if (config.apiKey.length > 5) return { success: true, message: `Connexion simulée pour ${config.provider} réussie.`};
+    return { success: false, message: "Fournisseur non supporté pour un test réel."}
+  }
+  const { endpoint, apiKey, apiVersion, deployment } = config;
+  if (!endpoint || !apiKey || !apiVersion || !deployment) return { success: false, message: "Tous les paramètres sont requis pour Azure." };
+  try {
+    const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
+    await client.chat.completions.create({
+      messages: [{ role: "system", content: "Test connection." }],
+      max_completion_tokens: 5,
+    });
+    return { success: true, message: "Connexion à Azure OpenAI réussie !" };
+  } catch (error: any) {
+    return { success: false, message: `La connexion a échoué : ${error.message}` };
+  }
+}
+
+// ## FONCTION 2 : DÉBOGAGE DE CONNEXION AVANCÉ (INCHANGÉE) ##
+export async function debugAzureConnection(config: LLMConfig): Promise<{ success: boolean; logs: string[] }> {
+  'use server';
+  const logs: string[] = [];
+  const { endpoint, apiKey, apiVersion, deployment } = config;
+  const log = (message: string) => logs.push(`[${new Date().toLocaleTimeString('fr-FR')}] ${message}`);
+  log("Début du test de débogage...");
+  try {
+    log("Initialisation du client AzureOpenAI...");
+    const client = new AzureOpenAI({ ...config, timeout: 20000 });
+    log("Client initialisé avec succès.");
+    log("Envoi d'un message de test...");
+    const response = await client.chat.completions.create({
+      messages: [{ role: "user", content: "Quelle est la capitale de la France ?" }],
+      max_completion_tokens: 50,
+    });
+    log("Réponse reçue de l'API !");
+    if (response.choices && response.choices.length > 0) {
+      const choice = response.choices[0];
+      const finishReason = choice.finish_reason;
+      log(`Raison de la fin (finish_reason): ${finishReason}`);
+      if (finishReason === 'content_filter') {
+        log("🔴 DIAGNOSTIC: Le filtre de contenu d'Azure a bloqué la réponse.");
+        return { success: false, logs };
+      }
+      if (choice.message?.content) {
+        logs.push("--- DÉBUT DE LA RÉPONSE ---", choice.message.content, "--- FIN DE LA RÉPONSE ---");
+        log("✅ TEST RÉUSSI !");
+        return { success: true, logs };
+      }
+    }
+    log("⚠️ AVERTISSEMENT: La structure de la réponse est inattendue.");
+    return { success: false, logs };
+  } catch (error: any) {
+    log("❌ ERREUR CRITIQUE PENDANT L'APPEL API.");
+    log(`Message: ${error.message}`);
+    return { success: false, logs };
+  }
+}
+
+// ## FONCTION 3 : GÉNÉRATION DE RÉPONSE UNIQUE (AVEC LOGIQUE POUR ANTHROPIC) ##
+export async function generateSingleLLMResponse(
+  question: string,
+  llmConfigs: LLMConfig[],
+  generationParams: Record<string, any>
+): Promise<{ result: any, logs: string[] }> {
+  'use server';
+
+  const logs: string[] = [];
+  const log = (message: string) => logs.push(`[${new Date().toLocaleTimeString('fr-FR')}] ${message}`);
+  const startTime = performance.now();
+
+  if (!question) throw new Error("La question est vide.");
+  const validatedConfigs = llmConfigs.filter(c => c.isValidated);
+  if (validatedConfigs.length === 0) throw new Error("Aucun LLM n'a été validé.");
+
+  const rowResult: any = { question: question, status: 'Refusée' };
+
+  let lengthInstruction = '';
+  switch (generationParams.responseLength) {
+    case 'Courte': lengthInstruction = 'Ta réponse doit être très courte, concise, et ne faire que 1 à 2 lignes au maximum.'; break;
+    case 'Moyenne': lengthInstruction = 'Ta réponse doit être de taille moyenne, entre 3 et 5 lignes.'; break;
+    case 'Longue': lengthInstruction = 'Ta réponse doit être longue, détaillée, et faire plus de 5 lignes.'; break;
+  }
+  const languageInstruction = generationParams.language === 'Français' ? 'Réponds impérativement et exclusivement en Français.' : 'Answer imperatively and exclusively in English.';
+  const systemPrompt = `Agissez en tant que : ${generationParams.persona}. ${languageInstruction} ${lengthInstruction} ${generationParams.instructions}`;
+  
+  for (const config of validatedConfigs) {
+    const providerStartTime = performance.now();
+    log(`  [${config.provider}] Début du traitement.`);
+    try {
+      if (config.provider === 'Google') {
+        const GOOGLE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+        const requestBody = { contents: [{ parts: [{ text: systemPrompt + "\n\n" + question }] }] };
+        
+        log(`  [${config.provider}] Envoi de la requête à l'API...`);
+        const apiStartTime = performance.now();
+        const response = await fetch(GOOGLE_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+        const apiEndTime = performance.now();
+        log(`  [${config.provider}] Réponse reçue en ${Math.round(apiEndTime - apiStartTime)}ms.`);
+
+        if (!response.ok) {
+          const errorBody = await response.json();
+          throw new Error(`Erreur API Google: ${response.status} - ${errorBody.error.message}`);
+        }
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (data.promptFeedback?.blockReason) {
+          rowResult[config.provider] = `ERREUR: Bloqué par le filtre de contenu. Raison: ${data.promptFeedback.blockReason}`;
+        } else if (text) {
+          rowResult[config.provider] = text;
+          rowResult.status = 'Validée';
+        } else {
+          rowResult[config.provider] = "ERREUR: La réponse de Google était vide ou mal formée.";
+        }
+      } else {
+        let client: OpenAI | AzureOpenAI;
+        let modelName: string;
+        const completionPayload: any = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }] };
+
+        switch(config.provider) {
+          case 'Azure OpenAI': client = new AzureOpenAI({ ...config }); modelName = config.deployment; completionPayload.max_completion_tokens = 4096; break;
+          case 'OpenAI': client = new OpenAI({ apiKey: config.apiKey, timeout: 60 * 1000 }); modelName = 'gpt-4o'; completionPayload.max_tokens = 4096; break;
+          case 'Anthropic':
+            client = new OpenAI({
+              apiKey: config.apiKey,
+              baseURL: 'https://api.anthropic.com/v1',
+              timeout: 60 * 1000,
+              defaultHeaders: { 'x-anthropic-version': '2023-06-01', 'max-tokens': '4096' }
+            });
+            modelName = 'claude-3-opus-20240229';
+            // Pour Anthropic, le system prompt est un paramètre de premier niveau
+            completionPayload.system = systemPrompt;
+            completionPayload.messages = [{ role: "user", content: question }]; // On ne garde que le message user
+            break;
+          case 'Mistral': client = new OpenAI({ apiKey: config.apiKey, baseURL: 'https://api.mistral.ai/v1', timeout: 60 * 1000 }); modelName = 'mistral-large-latest'; completionPayload.max_tokens = 4096; break;
+          default: rowResult[config.provider] = `[Fournisseur non implémenté]`; continue;
+        }
+        
+        completionPayload.model = modelName;
+        log(`  [${config.provider}] Envoi de la requête à l'API...`);
+        const apiStartTime = performance.now();
+        const response = await client.chat.completions.create(completionPayload);
+        const apiEndTime = performance.now();
+        log(`  [${config.provider}] Réponse reçue en ${Math.round(apiEndTime - apiStartTime)}ms.`);
+        
+        const choice = response.choices[0];
+        if (choice && choice.message?.content) {
+          rowResult[config.provider] = choice.message.content;
+          rowResult.status = 'Validée';
+        } else {
+          rowResult[config.provider] = `ERREUR: Réponse vide. Raison: ${choice?.finish_reason || 'inconnue'}.`;
+        }
+      }
+    } catch (error: any) {
+      rowResult[config.provider] = `ERREUR: ${error.message}`;
+    }
+    const providerEndTime = performance.now();
+    log(`  [${config.provider}] Traitement terminé en ${Math.round(providerEndTime - providerStartTime)}ms.`);
+  }
+  
+  const totalEndTime = performance.now();
+  log(`Traitement total de la question terminé en ${Math.round(totalEndTime - startTime)}ms.`);
+  
+  return { result: rowResult, logs };
+}
+
