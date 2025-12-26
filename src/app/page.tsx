@@ -21,8 +21,31 @@ export default function Home() {
   }, []);
 
   const isStep1Complete = llmConfigs.some(config => config.isValidated);
-  const isStep2Complete = !!projectData?.questionColumn && !!projectData?.answerColumn;
+  
+  // Pour l'étape 2 : au moins un onglet doit avoir ses colonnes définies
+  const isStep2Complete = projectData?.sheets?.some(
+    sheet => sheet.questionColumn && sheet.answerColumn
+  ) ?? false;
+  
   const isStep3Complete = results.length > 0;
+
+  // Messages d'aide pour comprendre pourquoi le bouton est désactivé
+  const getNextButtonHelp = () => {
+    if (currentStep === 1 && !isStep1Complete) {
+      return "Validez au moins une configuration LLM pour continuer.";
+    }
+    if (currentStep === 2 && !isStep2Complete) {
+      if (!projectData) return "Chargez un fichier Excel pour continuer.";
+      const missingSheets = projectData.sheets.filter(s => !s.questionColumn || !s.answerColumn);
+      if (missingSheets.length === projectData.sheets.length) {
+        return "Définissez les colonnes Question et Réponse pour au moins un onglet.";
+      }
+    }
+    if (currentStep === 3 && !isStep3Complete) {
+      return "Lancez la génération pour continuer.";
+    }
+    return null;
+  };
 
   const renderStep = () => {
     switch (currentStep) {
@@ -76,15 +99,23 @@ export default function Home() {
         {renderStep()}
       </div>
       
-      <div className="mt-8 max-w-4xl mx-auto flex justify-between">
-        <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
-          &larr; Précédent
-        </Button>
-        
-        {currentStep < 4 && (
-          <Button onClick={handleNext} disabled={!canGoNext()}>
-            Suivant &rarr;
+      <div className="mt-8 max-w-4xl mx-auto flex flex-col gap-2">
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
+            &larr; Précédent
           </Button>
+          
+          {currentStep < 4 && (
+            <Button onClick={handleNext} disabled={!canGoNext()}>
+              Suivant &rarr;
+            </Button>
+          )}
+        </div>
+        
+        {!canGoNext() && currentStep < 4 && getNextButtonHelp() && (
+          <p className="text-sm text-amber-600 text-right">
+            ⚠️ {getNextButtonHelp()}
+          </p>
         )}
       </div>
     </div>

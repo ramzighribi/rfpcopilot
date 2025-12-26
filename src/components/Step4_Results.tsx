@@ -75,17 +75,21 @@ function ResultDetailSheet() {
     toast.info("Régénération en cours...");
     
     try {
-      const regeneratedResult = await generateSingleLLMResponse(
+      const { result: regenResult } = await generateSingleLLMResponse(
         editableResult.question,
         llmConfigs,
         regenParams
       );
       
-      const updatedResult = { ...editableResult };
-      for (const key in regeneratedResult) {
+      const updatedResult: GenerationResult = { ...editableResult } as GenerationResult;
+      for (const key in regenResult) {
         if (key !== 'question') {
-          updatedResult[key as keyof GenerationResult] = regeneratedResult[key];
+          (updatedResult as any)[key] = (regenResult as any)[key];
         }
+      }
+      const firstProvider = llmConfigs.find(c => c.isValidated)?.provider;
+      if (!updatedResult.selectedAnswer && firstProvider && (regenResult as any)[firstProvider]) {
+        (updatedResult as any).selectedAnswer = firstProvider;
       }
       
       setEditableResult(updatedResult);
@@ -117,6 +121,22 @@ function ResultDetailSheet() {
               <CardContent><Textarea value={editableResult[config.provider] || ''} onChange={(e) => handleFieldChange(config.provider, e.target.value)} className="h-48 whitespace-pre-wrap font-mono text-xs" /></CardContent>
             </Card>
           ))}
+          {llmConfigs.some(c => c.isValidated) && (
+            <Card>
+              <CardHeader><CardTitle>Réponse choisie pour l'export</CardTitle></CardHeader>
+              <CardContent>
+                <Select value={editableResult.selectedAnswer || ''} onValueChange={(v) => handleFieldChange('selectedAnswer', v)}>
+                  <SelectTrigger><SelectValue placeholder="Choisir un provider" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">(première réponse non vide)</SelectItem>
+                    {llmConfigs.filter(c => c.isValidated).map(c => (
+                      <SelectItem key={c.id} value={c.provider}>{c.provider}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
           <Card><CardHeader><CardTitle>Validation</CardTitle></CardHeader>
             <CardContent>
               <RadioGroup value={editableResult.status} onValueChange={(value) => handleFieldChange('status', value)}>
@@ -175,7 +195,7 @@ const DraggableHeader: FC<{ header: any }> = ({ header }) => {
 export function Step4_Results() {
   const { 
     results, llmConfigs, setSelectedResultIndex, setResults,
-    generationParams, columnOrder, setColumnOrder
+    generationParams, columnOrder, setColumnOrder, projectData
   } = useProjectStore();
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -187,8 +207,9 @@ export function Step4_Results() {
   const [isBatchRegenDialogOpen, setIsBatchRegenDialogOpen] = useState(false);
   
   const validatedConfigs = llmConfigs.filter(c => c.isValidated);
+  const validatedProviders = validatedConfigs.map(c => c.provider);
 
-  const columns = useMemo<ColumnDef<GenerationResult>[]>(() => [
+  const columns = useMemo<ColumnDef<GenerationResult, any>[]>(() => [
     {
       id: 'rowNumber',
       header: 'N°',
@@ -197,7 +218,15 @@ export function Step4_Results() {
       enableResizing: false,
     },
     {
-      accessorKey: 'question',
+      accessorKey: 'sheetName',
+      header: 'Onglet',
+      cell: info => <div className="text-sm text-muted-foreground px-2">{info.getValue<string>()}</div>,
+      size: 140,
+      minSize: 100,
+      maxSize: 200,
+    },
+    {
+  accessorKey: 'question',
       header: 'Question',
       cell: info => <div className="font-medium text-sm p-2">{info.getValue<string>()}</div>,
       size: 450,
@@ -207,11 +236,38 @@ export function Step4_Results() {
     ...validatedConfigs.map(config => ({
       accessorKey: config.provider,
       header: config.provider,
-      cell: info => <div className="text-xs whitespace-pre-wrap font-mono p-2">{(info.getValue<string>() || 'N/A')}</div>,
+      cell: (info: any) => <div className="text-xs whitespace-pre-wrap font-mono p-2">{(info.getValue() || 'N/A')}</div>,
       size: 400,
       minSize: 150,
       maxSize: 700,
     })),
+    {
+      accessorKey: 'selectedAnswer',
+      header: 'Réponse choisie',
+      cell: (info: any) => {
+        const row = info.row.original as GenerationResult;
+        const handleSelect = (v: string) => {
+          const copy = [...results];
+          // "__auto__" signifie utiliser la première réponse non vide
+          copy[info.row.index] = { ...row, selectedAnswer: v === '__auto__' ? undefined : v } as any;
+          setResults(copy);
+        };
+        return (
+          <Select value={row.selectedAnswer || '__auto__'} onValueChange={handleSelect}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Choisir" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__auto__">(première réponse non vide)</SelectItem>
+              {validatedProviders.map(p => (
+                <SelectItem key={p} value={p}>{p}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      },
+      size: 220,
+      minSize: 180,
+      maxSize: 260,
+    },
     {
       accessorKey: 'status',
       header: 'Statut',
@@ -229,7 +285,7 @@ export function Step4_Results() {
     },
   ], [validatedConfigs]);
 
-  const columnIds = useMemo(() => columns.map(c => c.id || c.accessorKey as string), [columns]);
+  const columnIds = useMemo(() => columns.map((c: any) => c.id || c.accessorKey as string), [columns]);
 
   useEffect(() => {
     if (columnOrder.length === 0 || columnOrder.length !== columnIds.length) {
@@ -254,34 +310,83 @@ export function Step4_Results() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active.id !== over?.id) {
-      setColumnOrder(old => {
-        const oldIndex = old.indexOf(active.id as string);
-        const newIndex = old.indexOf(over!.id as string);
-        return arrayMove(old, oldIndex, newIndex);
-      });
+      const old = columnOrder;
+      const oldIndex = old.indexOf(active.id as string);
+      const newIndex = old.indexOf(over!.id as string);
+      setColumnOrder(arrayMove(old, oldIndex, newIndex));
     }
   };
 
   const handleExport = () => {
-    const dataToExport = table.getRowModel().rows.map(row => {
-      const orderedRow: any = {};
-      table.getVisibleLeafColumns().forEach(column => {
-        const columnId = column.id;
-        const header = column.columnDef.header as string;
-        if (columnId === 'rowNumber') {
-          orderedRow['N°'] = row.index + 1;
-        } else {
-          orderedRow[header] = row.original[columnId as keyof GenerationResult];
-        }
-      });
-      return orderedRow;
-    });
+    if (!projectData) {
+      toast.error("Aucun fichier source chargé.");
+      return;
+    }
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Résultats");
-    XLSX.writeFile(workbook, "rfp-studio-results.xlsx");
-    toast.success("Fichier Excel exporté avec succès !");
+    const workbook = XLSX.read(projectData.workbookBinary, { type: 'binary' });
+    const sheetMetaMap = new Map(projectData.sheets.map(s => [s.name, s]));
+  const validatedProviders = llmConfigs.filter(c => c.isValidated).map(c => c.provider);
+
+    const ensureRange = (ws: XLSX.WorkSheet, cell: XLSX.CellAddress) => {
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      range.s.r = Math.min(range.s.r, cell.r);
+      range.s.c = Math.min(range.s.c, cell.c);
+      range.e.r = Math.max(range.e.r, cell.r);
+      range.e.c = Math.max(range.e.c, cell.c);
+      ws['!ref'] = XLSX.utils.encode_range(range);
+    };
+
+    const getAnswerForResult = (res: GenerationResult) => {
+      if (res.selectedAnswer) {
+        const val = res[res.selectedAnswer];
+        if (typeof val === 'string') return val;
+      }
+      for (const provider of validatedProviders) {
+        const val = res[provider];
+        if (typeof val === 'string' && val.trim().length > 0) return val;
+      }
+      return '';
+    };
+
+    let written = 0;
+    for (const res of results) {
+      const meta = sheetMetaMap.get(res.sheetName);
+      const ws = workbook.Sheets[res.sheetName];
+      if (!meta || !ws) {
+        console.warn(`Feuille introuvable: ${res.sheetName}`);
+        continue;
+      }
+      if (!meta.answerColumn) {
+        toast.error(`Colonne réponse non définie pour l'onglet ${res.sheetName}.`);
+        return;
+      }
+
+      const colIndex = meta.columns.indexOf(meta.answerColumn);
+      if (colIndex === -1) {
+        toast.error(`Impossible de trouver la colonne réponse "${meta.answerColumn}" dans l'onglet ${res.sheetName}.`);
+        return;
+      }
+
+      const cellAddr = { c: colIndex, r: res.rowIndex + 1 }; // +1 car ligne 1 = header
+      const cellRef = XLSX.utils.encode_cell(cellAddr);
+      ws[cellRef] = { t: 's', v: getAnswerForResult(res) };
+      ensureRange(ws, cellAddr);
+      written++;
+    }
+
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
+    const buf = new ArrayBuffer(wbout.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < wbout.length; ++i) view[i] = wbout.charCodeAt(i) & 0xff;
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rfp-${projectData.fileName}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Fichier exporté (${written} lignes mises à jour).`);
   };
 
   const handleBatchRegenerate = async () => {
@@ -301,7 +406,9 @@ export function Step4_Results() {
         const row = rowsToRegen[i];
         try {
             const regeneratedResult = await generateSingleLLMResponse(row.question, llmConfigs, batchRegenParams);
-            newResults[row.originalIndex] = regeneratedResult;
+            const firstProvider = validatedProviders[0];
+            const initialSelected = firstProvider && (regeneratedResult as any)[firstProvider] ? firstProvider : (row.selectedAnswer || '');
+            newResults[row.originalIndex] = { ...(regeneratedResult as any), sheetName: row.sheetName, rowIndex: row.rowIndex, selectedAnswer: initialSelected } as any;
         } catch (error) {
             toast.error(`Erreur sur la question: "${row.question.substring(0, 20)}..."`);
         }

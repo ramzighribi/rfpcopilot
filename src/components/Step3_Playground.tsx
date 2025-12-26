@@ -1,5 +1,5 @@
 'use client';
-import { useProjectStore } from "@/store/useProjectStore";
+import { useProjectStore, GenerationResult } from "@/store/useProjectStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -36,10 +36,9 @@ export function Step3_Playground() {
   }, [generationLogs]);
   
   const handleGenerate = async (withLog: boolean) => {
-    if (!projectData?.questionColumn || projectData.rows.length === 0) {
-      toast.error("Veuillez charger et mapper un fichier à l'étape 2.");
-      return;
-    }
+    if (!projectData) { toast.error("Veuillez charger un fichier à l'étape 2."); return; }
+    const mappedSheets = projectData.sheets.filter(s => s.questionColumn);
+    if (mappedSheets.length === 0) { toast.error("Aucun onglet n'est mappé."); return; }
     
     setIsGenerating(true);
     setResults([]);
@@ -48,29 +47,38 @@ export function Step3_Playground() {
       setIsLogOpen(true);
     }
     
-    const allQuestions = projectData.rows.map(row => row[projectData.questionColumn!]).filter(Boolean);
-    const totalQuestions = allQuestions.length;
+    const tasks = mappedSheets.flatMap(sheet =>
+      sheet.rows.map((row, idx) => ({
+        sheetName: sheet.name,
+        rowIndex: idx,
+        question: row[sheet.questionColumn!],
+      })).filter(t => Boolean(t.question))
+    );
+
+    const totalQuestions = tasks.length;
     setGenerationProgress({ current: 0, total: totalQuestions });
     
-    const newResults = [];
+    const newResults: GenerationResult[] = [];
 
     for (let i = 0; i < totalQuestions; i++) {
-      const question = allQuestions[i];
+      const { question, sheetName, rowIndex } = tasks[i];
       const logHeader = `--- Début Question ${i + 1}/${totalQuestions}: "${question.substring(0, 40)}..." ---`;
       addMultipleGenerationLogs([logHeader]);
       
       try {
-        const { result: generatedResult, logs: responseLogs } = await generateSingleLLMResponse(question, llmConfigs, generationParams);
-        newResults.push(generatedResult);
+  const { result: generatedResult, logs: responseLogs } = await generateSingleLLMResponse(question, llmConfigs, generationParams);
+  const firstProvider = llmConfigs.find(c => c.isValidated)?.provider;
+  const initialSelected = firstProvider && (generatedResult as any)[firstProvider] ? firstProvider : '';
+  newResults.push({ ...(generatedResult as GenerationResult), sheetName, rowIndex, selectedAnswer: initialSelected });
         addMultipleGenerationLogs(responseLogs);
       } catch (error: any) {
         toast.error(`Erreur sur la question ${i + 1}`, { description: error.message });
         const errorResult = { 
-          question, 
+          question, sheetName, rowIndex,
           status: 'Refusée' as const,
           ...llmConfigs.reduce((acc, cfg) => ({...acc, [cfg.provider]: `ERREUR FATALE: ${error.message}`}), {})
         };
-        newResults.push(errorResult);
+        newResults.push(errorResult as GenerationResult);
         addMultipleGenerationLogs([`❌ ERREUR FATALE: ${error.message}`]);
       }
       
@@ -102,7 +110,7 @@ export function Step3_Playground() {
         <CardHeader>
           <CardTitle>Paramètres de Génération</CardTitle>
           <p className="text-sm text-muted-foreground pt-1">
-            <span className="font-bold">{projectData?.rows.length || 0}</span> questions prêtes à être traitées.
+            <span className="font-bold">{projectData ? projectData.sheets.reduce((acc, s) => acc + s.rows.length, 0) : 0}</span> lignes chargées (toutes feuilles).
           </p>
         </CardHeader>
         <CardContent className="space-y-6">

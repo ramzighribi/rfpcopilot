@@ -1,16 +1,17 @@
 'use client';
-import { useProjectStore, ProjectData } from "@/store/useProjectStore";
+import { useProjectStore, ProjectData, ProjectSheet } from "@/store/useProjectStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UploadCloud, FileText, Loader2 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
 
 export function Step2_Context() {
   const { projectData, setProjectData, setMapping } = useProjectStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -20,28 +21,29 @@ export function Step2_Context() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = e.target?.result;
+        const data = e.target?.result as string;
         const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        
-        const headerData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        const columns = headerData.length > 0 ? headerData[0].map(String) : [];
 
-        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
-        
-        if (columns.length > 0) {
-          const newProjectData: ProjectData = {
-            fileName: file.name,
-            columns: columns,
-            rows: rows,
-            questionColumn: null,
-            answerColumn: null,
-          };
-          setProjectData(newProjectData);
-        } else {
+        const sheets: ProjectSheet[] = workbook.SheetNames.map((name) => {
+          const worksheet = workbook.Sheets[name];
+          const headerData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          const columns = headerData.length > 0 ? headerData[0].map(String) : [];
+          const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
+          return { name, columns, rows, questionColumn: null, answerColumn: null };
+        });
+
+        if (sheets.length === 0 || sheets.every(s => s.columns.length === 0)) {
           toast.error("Le fichier semble vide ou ne contient pas d'en-têtes.");
+          return;
         }
+
+        const newProjectData: ProjectData = {
+          fileName: file.name,
+          workbookBinary: data,
+          sheets,
+        };
+        setProjectData(newProjectData);
+        setSelectedSheet(sheets[0].name);
       } catch (error) {
         console.error("Erreur lors de la lecture du fichier Excel :", error);
         toast.error("Le format du fichier est invalide.", { description: "Veuillez vérifier qu'il s'agit d'un fichier .xlsx valide." });
@@ -89,25 +91,67 @@ export function Step2_Context() {
       {projectData && (
         <Card>
             <CardHeader><CardTitle>Mapping des Colonnes</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="text-sm font-medium">Colonne des Questions</label>
-                    <Select onValueChange={(value) => setMapping('question', value)} value={projectData.questionColumn || undefined}>
-                        <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
-                        <SelectContent>
-                            {projectData.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Onglet</label>
+                <Select value={selectedSheet ?? undefined} onValueChange={setSelectedSheet}>
+                  <SelectTrigger><SelectValue placeholder="Choisir un onglet" /></SelectTrigger>
+                  <SelectContent>
+                    {projectData.sheets.map(sheet => (
+                      <SelectItem key={sheet.name} value={sheet.name}>{sheet.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSheet && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(() => {
+                    const sheet = projectData.sheets.find(s => s.name === selectedSheet)!;
+                    return (
+                      <>
+                        <div>
+                          <label className="text-sm font-medium">Colonne des Questions</label>
+                          <Select 
+                            key={`question-${sheet.name}`}
+                            onValueChange={(value) => setMapping(sheet.name, 'question', value)} 
+                            value={sheet.questionColumn || ""}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                            <SelectContent>
+                              {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Colonne des Réponses (Référence)</label>
+                          <Select 
+                            key={`answer-${sheet.name}`}
+                            onValueChange={(value) => setMapping(sheet.name, 'answer', value)} 
+                            value={sheet.answerColumn || ""}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                            <SelectContent>
+                              {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
-                 <div>
-                    <label className="text-sm font-medium">Colonne des Réponses (Référence)</label>
-                    <Select onValueChange={(value) => setMapping('answer', value)} value={projectData.answerColumn || undefined}>
-                        <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
-                        <SelectContent>
-                            {projectData.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
+              )}
+
+              <div className="bg-slate-50 border rounded-md p-3 text-sm space-y-2">
+                <p className="font-medium text-slate-700">Statut des onglets</p>
+                <ul className="space-y-1 list-disc ml-5">
+                  {projectData.sheets.map(sheet => (
+                    <li key={sheet.name}>
+                      <span className="font-semibold">{sheet.name}</span> — Q: {sheet.questionColumn ?? 'Non défini'} / R: {sheet.answerColumn ?? 'Non défini'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </CardContent>
         </Card>
       )}

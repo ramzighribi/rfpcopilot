@@ -5,6 +5,7 @@ export type LLMConfig = {
   id: string;
   provider: string;
   apiKey: string;
+  azureAuthMode?: 'apiKey' | 'entraId';
   endpoint: string;
   apiVersion: string;
   deployment: string;
@@ -12,19 +13,27 @@ export type LLMConfig = {
   isValidated: boolean;
 };
 
-export type ProjectData = {
-  fileName: string;
+export type ProjectSheet = {
+  name: string;
   columns: string[];
   rows: Record<string, any>[];
   questionColumn: string | null;
   answerColumn: string | null;
 };
 
+export type ProjectData = {
+  fileName: string;
+  workbookBinary: string; // binaire du fichier chargé pour réécriture
+  sheets: ProjectSheet[];
+};
+
 export type GenerationResult = {
   question: string;
-  [provider: string]: string; 
+  sheetName: string;
+  rowIndex: number; // index de ligne dans la feuille (0-based, hors header)
   status: 'Non traité' | 'Doute' | 'Refusée' | 'Validée';
-};
+  selectedAnswer?: string; // clé du provider choisi pour l'export
+} & Record<string, string | number>;
 
 type ProjectState = {
   currentStep: number;
@@ -43,7 +52,7 @@ type ProjectState = {
   removeLlmConfig: (index: number) => void;
   loadLlmConfigs: (configs: LLMConfig[]) => void;
   setProjectData: (data: ProjectData) => void;
-  setMapping: (type: 'question' | 'answer', column: string) => void;
+  setMapping: (sheetName: string, type: 'question' | 'answer', column: string) => void;
   setGenerationParams: (params: Record<string, any>) => void;
   setResults: (results: GenerationResult[]) => void;
   setGenerationProgress: (progress: { current: number; total: number }) => void;
@@ -60,7 +69,7 @@ export const useProjectStore = create<ProjectState>()(
     (set) => ({
       currentStep: 1,
       llmConfigs: [],
-      projectData: null,
+  projectData: null,
       generationParams: {
         language: 'Français',
         responseLength: 'Moyenne',
@@ -79,7 +88,7 @@ export const useProjectStore = create<ProjectState>()(
           llmConfigs: [
             ...state.llmConfigs,
             { 
-              id: Date.now().toString(), provider: '', apiKey: '', endpoint: '',
+              id: Date.now().toString(), provider: '', apiKey: '', azureAuthMode: 'apiKey', endpoint: '',
               apiVersion: '2025-01-01-preview', deployment: '',
               model: 'gemini-1.5-flash', isValidated: false 
             },
@@ -95,11 +104,14 @@ export const useProjectStore = create<ProjectState>()(
         })),
       loadLlmConfigs: (configs) => set({ llmConfigs: configs }),
       setProjectData: (data) => set({ projectData: data }),
-      setMapping: (type, column) =>
+      setMapping: (sheetName, type, column) =>
         set((state) => {
           if (!state.projectData) return {};
           const key = type === 'question' ? 'questionColumn' : 'answerColumn';
-          return { projectData: { ...state.projectData, [key]: column } };
+          const updatedSheets = state.projectData.sheets.map((sheet) =>
+            sheet.name === sheetName ? { ...sheet, [key]: column } : sheet
+          );
+          return { projectData: { ...state.projectData, sheets: updatedSheets } };
         }),
        setGenerationParams: (params) => set((state) => ({ generationParams: { ...state.generationParams, ...params } })),
        setResults: (results) => set({ results }),
