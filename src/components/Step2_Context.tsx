@@ -3,13 +3,15 @@ import { useProjectStore, ProjectData, ProjectSheet } from "@/store/useProjectSt
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UploadCloud, FileText, Loader2 } from "lucide-react";
-import { ChangeEvent, useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { UploadCloud, FileText, Loader2, Info, Check, Table2 } from "lucide-react";
+import { ChangeEvent, useState } from "react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export function Step2_Context() {
-  const { projectData, setProjectData, setMapping } = useProjectStore();
+  const { projectData, setProjectData, setMapping, setHeaderRow, toggleSheetEnabled } = useProjectStore();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
 
@@ -26,10 +28,12 @@ export function Step2_Context() {
 
         const sheets: ProjectSheet[] = workbook.SheetNames.map((name) => {
           const worksheet = workbook.Sheets[name];
-          const headerData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          const columns = headerData.length > 0 ? headerData[0].map(String) : [];
+          // Stocker toutes les données brutes pour pouvoir changer la ligne d'en-tête
+          const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          const headerRow = 1; // Par défaut, la première ligne
+          const columns = rawData.length > 0 ? rawData[0].map((cell: any) => cell?.toString() || '') : [];
           const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
-          return { name, columns, rows, questionColumn: null, answerColumn: null };
+          return { name, columns, rows, questionColumn: null, answerColumn: null, headerRow, rawData, enabled: true };
         });
 
         if (sheets.length === 0 || sheets.every(s => s.columns.length === 0)) {
@@ -90,14 +94,48 @@ export function Step2_Context() {
       
       {projectData && (
         <Card>
-            <CardHeader><CardTitle>Mapping des Colonnes</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Sélection des Onglets</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-slate-600">Cliquez sur les onglets à traiter. Les onglets sélectionnés sont surlignés en bleu.</p>
+              <div className="flex flex-wrap gap-2">
+                {projectData.sheets.map(sheet => (
+                  <button
+                    key={sheet.name}
+                    onClick={() => toggleSheetEnabled(sheet.name)}
+                    className={cn(
+                      "relative flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200",
+                      "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                      sheet.enabled
+                        ? "bg-blue-50 border-blue-500 text-blue-700"
+                        : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
+                    )}
+                  >
+                    <Table2 className="w-4 h-4" />
+                    <span className="font-medium">{sheet.name}</span>
+                    <span className="text-xs opacity-70">({sheet.rows.length} lignes)</span>
+                    {sheet.enabled && (
+                      <Check className="w-4 h-4 text-blue-600 ml-1" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">
+                {projectData.sheets.filter(s => s.enabled).length} / {projectData.sheets.length} onglet(s) sélectionné(s)
+              </p>
+            </CardContent>
+        </Card>
+      )}
+
+      {projectData && projectData.sheets.some(s => s.enabled) && (
+        <Card>
+            <CardHeader><CardTitle>Configuration des Colonnes</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Onglet</label>
+                <label className="text-sm font-medium">Configurer l'onglet</label>
                 <Select value={selectedSheet ?? undefined} onValueChange={setSelectedSheet}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un onglet" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Choisir un onglet à configurer" /></SelectTrigger>
                   <SelectContent>
-                    {projectData.sheets.map(sheet => (
+                    {projectData.sheets.filter(s => s.enabled).map(sheet => (
                       <SelectItem key={sheet.name} value={sheet.name}>{sheet.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -105,57 +143,210 @@ export function Step2_Context() {
               </div>
 
               {selectedSheet && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {(() => {
                     const sheet = projectData.sheets.find(s => s.name === selectedSheet)!;
+                    const maxRows = sheet.rawData?.length || 1;
                     return (
                       <>
-                        <div>
-                          <label className="text-sm font-medium">Colonne des Questions</label>
-                          <Select 
-                            key={`question-${sheet.name}`}
-                            onValueChange={(value) => setMapping(sheet.name, 'question', value)} 
-                            value={sheet.questionColumn || ""}
-                          >
-                            <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
-                            <SelectContent>
-                              {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                        {/* Sélecteur de ligne d'en-tête */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                          <div className="flex items-start gap-2 mb-2">
+                            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <p className="text-sm text-blue-800">
+                              Si vos en-têtes de colonnes ne sont pas sur la première ligne, indiquez le numéro de la ligne contenant les en-têtes.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <label className="text-sm font-medium text-blue-800">Ligne d'en-tête :</label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={maxRows}
+                              value={sheet.headerRow}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value);
+                                if (value >= 1 && value <= maxRows) {
+                                  setHeaderRow(sheet.name, value);
+                                }
+                              }}
+                              className="w-20 h-8"
+                            />
+                            <span className="text-xs text-blue-600">
+                              (1 = première ligne, max: {maxRows})
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-sm font-medium">Colonne des Réponses (Référence)</label>
-                          <Select 
-                            key={`answer-${sheet.name}`}
-                            onValueChange={(value) => setMapping(sheet.name, 'answer', value)} 
-                            value={sheet.answerColumn || ""}
-                          >
-                            <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
-                            <SelectContent>
-                              {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+
+                        {/* Aperçu des premières lignes */}
+                        {sheet.rawData && sheet.rawData.length > 0 && (
+                          <div className="bg-slate-50 border rounded-md p-3">
+                            <p className="text-sm font-medium text-slate-700 mb-2">
+                              Aperçu des 10 premières lignes :
+                            </p>
+                            <div className="overflow-x-auto">
+                              <table className="text-xs border-collapse w-full">
+                                <tbody>
+                                  {sheet.rawData.slice(0, 10).map((row, rowIdx) => (
+                                    <tr 
+                                      key={rowIdx} 
+                                      className={rowIdx === sheet.headerRow - 1 ? 'bg-green-100 font-semibold' : ''}
+                                    >
+                                      <td className="border px-2 py-1 bg-slate-200 text-slate-600 font-medium">
+                                        {rowIdx + 1}
+                                      </td>
+                                      {(row as any[]).slice(0, 8).map((cell, cellIdx) => (
+                                        <td key={cellIdx} className="border px-2 py-1 max-w-[150px] truncate">
+                                          {cell?.toString() || ''}
+                                        </td>
+                                      ))}
+                                      {(row as any[]).length > 8 && (
+                                        <td className="border px-2 py-1 text-slate-400">...</td>
+                                      )}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                              La ligne surlignée en vert est utilisée comme en-tête.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Mapping des colonnes */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium">Colonne des Questions</label>
+                            <Select 
+                              key={`question-${sheet.name}-${sheet.headerRow}`}
+                              onValueChange={(value) => setMapping(sheet.name, 'question', value)} 
+                              value={sheet.questionColumn || ""}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                              <SelectContent>
+                                {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Colonne des Réponses (Référence)</label>
+                            <Select 
+                              key={`answer-${sheet.name}-${sheet.headerRow}`}
+                              onValueChange={(value) => setMapping(sheet.name, 'answer', value)} 
+                              value={sheet.answerColumn || ""}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                              <SelectContent>
+                                {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </>
                     );
                   })()}
                 </div>
               )}
-
-              <div className="bg-slate-50 border rounded-md p-3 text-sm space-y-2">
-                <p className="font-medium text-slate-700">Statut des onglets</p>
-                <ul className="space-y-1 list-disc ml-5">
-                  {projectData.sheets.map(sheet => (
-                    <li key={sheet.name}>
-                      <span className="font-semibold">{sheet.name}</span> — Q: {sheet.questionColumn ?? 'Non défini'} / R: {sheet.answerColumn ?? 'Non défini'}
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </CardContent>
+        </Card>
+      )}
+
+      {/* Récapitulatif des onglets sélectionnés */}
+      {projectData && projectData.sheets.some(s => s.enabled) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Récapitulatif des onglets
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {projectData.sheets.filter(s => s.enabled).map(sheet => {
+                const isComplete = sheet.questionColumn && sheet.answerColumn;
+                return (
+                  <div 
+                    key={sheet.name}
+                    className={cn(
+                      "relative p-4 rounded-lg border-2 transition-all",
+                      isComplete 
+                        ? "bg-green-50 border-green-300" 
+                        : "bg-amber-50 border-amber-300"
+                    )}
+                  >
+                    {/* Badge de statut */}
+                    <div className={cn(
+                      "absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
+                      isComplete ? "bg-green-500" : "bg-amber-500"
+                    )}>
+                      {isComplete ? <Check className="w-4 h-4" /> : "!"}
+                    </div>
+
+                    {/* Nom de l'onglet */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <Table2 className={cn("w-4 h-4", isComplete ? "text-green-600" : "text-amber-600")} />
+                      <span className="font-semibold text-slate-800">{sheet.name}</span>
+                    </div>
+
+                    {/* Détails */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Ligne d'en-tête:</span>
+                        <span className="font-medium text-slate-700">{sheet.headerRow}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Questions:</span>
+                        <span className={cn(
+                          "font-medium px-2 py-0.5 rounded",
+                          sheet.questionColumn 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-red-100 text-red-600"
+                        )}>
+                          {sheet.questionColumn || "Non défini"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Réponses:</span>
+                        <span className={cn(
+                          "font-medium px-2 py-0.5 rounded",
+                          sheet.answerColumn 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-red-100 text-red-600"
+                        )}>
+                          {sheet.answerColumn || "Non défini"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                        <span className="text-slate-500">Lignes:</span>
+                        <span className="font-medium text-slate-700">{sheet.rows.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Résumé global */}
+            <div className="mt-4 p-3 bg-slate-100 rounded-lg flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                <span className="font-medium">{projectData.sheets.filter(s => s.enabled && s.questionColumn && s.answerColumn).length}</span>
+                <span> / </span>
+                <span className="font-medium">{projectData.sheets.filter(s => s.enabled).length}</span>
+                <span> onglet(s) prêt(s)</span>
+              </div>
+              <div className="text-sm text-slate-600">
+                <span className="font-medium">
+                  {projectData.sheets.filter(s => s.enabled).reduce((acc, s) => acc + s.rows.length, 0)}
+                </span>
+                <span> lignes au total</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
       )}
     </div>
   );
 }
+
 

@@ -19,6 +19,9 @@ export type ProjectSheet = {
   rows: Record<string, any>[];
   questionColumn: string | null;
   answerColumn: string | null;
+  headerRow: number; // 1-based (ligne 1 = première ligne)
+  rawData: any[][]; // données brutes pour recalculer les colonnes
+  enabled: boolean; // onglet activé pour le traitement
 };
 
 export type ProjectData = {
@@ -53,6 +56,8 @@ type ProjectState = {
   loadLlmConfigs: (configs: LLMConfig[]) => void;
   setProjectData: (data: ProjectData) => void;
   setMapping: (sheetName: string, type: 'question' | 'answer', column: string) => void;
+  setHeaderRow: (sheetName: string, headerRow: number) => void;
+  toggleSheetEnabled: (sheetName: string) => void;
   setGenerationParams: (params: Record<string, any>) => void;
   setResults: (results: GenerationResult[]) => void;
   setGenerationProgress: (progress: { current: number; total: number }) => void;
@@ -110,6 +115,45 @@ export const useProjectStore = create<ProjectState>()(
           const key = type === 'question' ? 'questionColumn' : 'answerColumn';
           const updatedSheets = state.projectData.sheets.map((sheet) =>
             sheet.name === sheetName ? { ...sheet, [key]: column } : sheet
+          );
+          return { projectData: { ...state.projectData, sheets: updatedSheets } };
+        }),
+      setHeaderRow: (sheetName, headerRow) =>
+        set((state) => {
+          if (!state.projectData) return {};
+          const updatedSheets = state.projectData.sheets.map((sheet) => {
+            if (sheet.name !== sheetName || !sheet.rawData) return sheet;
+            // Recalculer les colonnes basées sur la nouvelle ligne d'en-tête
+            const headerIndex = headerRow - 1; // headerRow est 1-based
+            const rawData = sheet.rawData;
+            if (headerIndex < 0 || headerIndex >= rawData.length) return sheet;
+            
+            const columns = rawData[headerIndex].map((cell: any) => cell?.toString() || '');
+            // Recalculer les rows à partir de la ligne après l'en-tête
+            const rows = rawData.slice(headerIndex + 1).map((row) => {
+              const rowObj: Record<string, any> = {};
+              columns.forEach((col, idx) => {
+                rowObj[col] = row[idx] ?? '';
+              });
+              return rowObj;
+            });
+            return { 
+              ...sheet, 
+              headerRow, 
+              columns, 
+              rows,
+              // Reset les mappings car les colonnes ont changé
+              questionColumn: null,
+              answerColumn: null
+            };
+          });
+          return { projectData: { ...state.projectData, sheets: updatedSheets } };
+        }),
+      toggleSheetEnabled: (sheetName) =>
+        set((state) => {
+          if (!state.projectData) return {};
+          const updatedSheets = state.projectData.sheets.map((sheet) =>
+            sheet.name === sheetName ? { ...sheet, enabled: !sheet.enabled } : sheet
           );
           return { projectData: { ...state.projectData, sheets: updatedSheets } };
         }),

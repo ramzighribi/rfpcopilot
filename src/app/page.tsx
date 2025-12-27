@@ -22,10 +22,11 @@ export default function Home() {
 
   const isStep1Complete = llmConfigs.some(config => config.isValidated);
   
-  // Pour l'étape 2 : au moins un onglet doit avoir ses colonnes définies
-  const isStep2Complete = projectData?.sheets?.some(
+  // Pour l'étape 2 : au moins un onglet activé doit avoir ses colonnes définies
+  const enabledSheets = projectData?.sheets?.filter(s => s.enabled) ?? [];
+  const isStep2Complete = enabledSheets.some(
     sheet => sheet.questionColumn && sheet.answerColumn
-  ) ?? false;
+  );
   
   const isStep3Complete = results.length > 0;
 
@@ -36,9 +37,10 @@ export default function Home() {
     }
     if (currentStep === 2 && !isStep2Complete) {
       if (!projectData) return "Chargez un fichier Excel pour continuer.";
-      const missingSheets = projectData.sheets.filter(s => !s.questionColumn || !s.answerColumn);
-      if (missingSheets.length === projectData.sheets.length) {
-        return "Définissez les colonnes Question et Réponse pour au moins un onglet.";
+      if (enabledSheets.length === 0) return "Sélectionnez au moins un onglet à traiter.";
+      const missingSheets = enabledSheets.filter(s => !s.questionColumn || !s.answerColumn);
+      if (missingSheets.length === enabledSheets.length) {
+        return "Définissez les colonnes Question et Réponse pour au moins un onglet sélectionné.";
       }
     }
     if (currentStep === 3 && !isStep3Complete) {

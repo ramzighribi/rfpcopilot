@@ -37,8 +37,8 @@ export function Step3_Playground() {
   
   const handleGenerate = async (withLog: boolean) => {
     if (!projectData) { toast.error("Veuillez charger un fichier à l'étape 2."); return; }
-    const mappedSheets = projectData.sheets.filter(s => s.questionColumn);
-    if (mappedSheets.length === 0) { toast.error("Aucun onglet n'est mappé."); return; }
+    const mappedSheets = projectData.sheets.filter(s => s.enabled && s.questionColumn);
+    if (mappedSheets.length === 0) { toast.error("Aucun onglet sélectionné n'est mappé."); return; }
     
     setIsGenerating(true);
     setResults([]);
@@ -110,7 +110,7 @@ export function Step3_Playground() {
         <CardHeader>
           <CardTitle>Paramètres de Génération</CardTitle>
           <p className="text-sm text-muted-foreground pt-1">
-            <span className="font-bold">{projectData ? projectData.sheets.reduce((acc, s) => acc + s.rows.length, 0) : 0}</span> lignes chargées (toutes feuilles).
+            <span className="font-bold">{projectData ? projectData.sheets.filter(s => s.enabled).reduce((acc, s) => acc + s.rows.length, 0) : 0}</span> lignes à traiter ({projectData?.sheets.filter(s => s.enabled).length || 0} onglet(s) sélectionné(s)).
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
