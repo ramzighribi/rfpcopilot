@@ -28,12 +28,26 @@ export function Step2_Context() {
 
         const sheets: ProjectSheet[] = workbook.SheetNames.map((name) => {
           const worksheet = workbook.Sheets[name];
+          
+          // Déterminer la plage réelle du worksheet
+          const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
+          
+          // Forcer la lecture depuis la ligne 0 (A1) même si les premières lignes sont vides
+          // En modifiant la plage pour commencer à la ligne 0
+          if (range && range.s.r > 0) {
+            // La plage ne commence pas à la ligne 0, on la force
+            range.s.r = 0;
+            worksheet['!ref'] = XLSX.utils.encode_range(range);
+          }
+          
           // Stocker toutes les données brutes AVEC les lignes vides pour garder la numérotation Excel
           const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { 
             header: 1, 
             defval: '',  // Valeur par défaut pour les cellules vides
-            blankrows: true  // Garder les lignes vides
+            blankrows: true,  // Garder les lignes vides
+            raw: false  // Convertir les dates/nombres en strings
           });
+          
           const headerRow = 1; // Par défaut, la première ligne
           const columns = rawData.length > 0 ? rawData[0].map((cell: any) => cell?.toString() || '') : [];
           const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
