@@ -252,7 +252,9 @@ export function Step2_Context() {
                             >
                               <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
                               <SelectContent>
-                                {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                                {sheet.columns
+                                  .filter(col => col && col.trim() !== '')
+                                  .map((col, idx) => <SelectItem key={`${col}-${idx}`} value={col}>{col}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
@@ -265,7 +267,9 @@ export function Step2_Context() {
                             >
                               <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
                               <SelectContent>
-                                {sheet.columns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
+                                {sheet.columns
+                                  .filter(col => col && col.trim() !== '')
+                                  .map((col, idx) => <SelectItem key={`${col}-${idx}`} value={col}>{col}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
