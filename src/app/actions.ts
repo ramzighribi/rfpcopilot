@@ -14,9 +14,17 @@ function createAzureOpenAIClient(config: LLMConfig) {
   if (useEntraId) {
     // Utiliser ClientSecretCredential si les variables d'environnement sont définies (pour Vercel/production)
     // Sinon fallback sur DefaultAzureCredential (pour développement local)
-    const tenantId = process.env.AZURE_TENANT_ID;
-    const clientId = process.env.AZURE_CLIENT_ID;
-    const clientSecret = process.env.AZURE_CLIENT_SECRET;
+    const tenantId = process.env.AZURE_TENANT_ID?.trim();
+    const clientId = process.env.AZURE_CLIENT_ID?.trim();
+    const clientSecret = process.env.AZURE_CLIENT_SECRET?.trim();
+    
+    console.log('Azure Auth Debug:', { 
+      hasTenantId: !!tenantId, 
+      hasClientId: !!clientId, 
+      hasClientSecret: !!clientSecret,
+      tenantIdLength: tenantId?.length,
+      clientIdLength: clientId?.length
+    });
     
     let credential;
     if (tenantId && clientId && clientSecret) {
