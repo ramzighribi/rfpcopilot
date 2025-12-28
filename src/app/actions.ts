@@ -1,7 +1,7 @@
 'use server';
 
 import OpenAI, { AzureOpenAI } from 'openai';
-import { DefaultAzureCredential, getBearerTokenProvider } from '@azure/identity';
+import { ClientSecretCredential, DefaultAzureCredential, getBearerTokenProvider } from '@azure/identity';
 import { LLMConfig } from "@/store/useProjectStore";
 
 // Fonction helper pour créer un client Azure OpenAI
@@ -12,7 +12,19 @@ function createAzureOpenAIClient(config: LLMConfig) {
   const useEntraId = azureAuthMode === 'entraId' || (!apiKey && !!endpoint);
 
   if (useEntraId) {
-    const credential = new DefaultAzureCredential();
+    // Utiliser ClientSecretCredential si les variables d'environnement sont définies (pour Vercel/production)
+    // Sinon fallback sur DefaultAzureCredential (pour développement local)
+    const tenantId = process.env.AZURE_TENANT_ID;
+    const clientId = process.env.AZURE_CLIENT_ID;
+    const clientSecret = process.env.AZURE_CLIENT_SECRET;
+    
+    let credential;
+    if (tenantId && clientId && clientSecret) {
+      credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+    } else {
+      credential = new DefaultAzureCredential();
+    }
+    
     const azureADTokenProvider = getBearerTokenProvider(credential, "https://cognitiveservices.azure.com/.default");
     return new AzureOpenAI({ endpoint, apiVersion, deployment, azureADTokenProvider });
   }
