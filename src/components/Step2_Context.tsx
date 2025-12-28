@@ -28,8 +28,12 @@ export function Step2_Context() {
 
         const sheets: ProjectSheet[] = workbook.SheetNames.map((name) => {
           const worksheet = workbook.Sheets[name];
-          // Stocker toutes les données brutes pour pouvoir changer la ligne d'en-tête
-          const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          // Stocker toutes les données brutes AVEC les lignes vides pour garder la numérotation Excel
+          const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1, 
+            defval: '',  // Valeur par défaut pour les cellules vides
+            blankrows: true  // Garder les lignes vides
+          });
           const headerRow = 1; // Par défaut, la première ligne
           const columns = rawData.length > 0 ? rawData[0].map((cell: any) => cell?.toString() || '') : [];
           const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
@@ -128,15 +132,26 @@ export function Step2_Context() {
 
       {projectData && projectData.sheets.some(s => s.enabled) && (
         <Card>
-            <CardHeader><CardTitle>Configuration des Colonnes</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Configuration des Colonnes</span>
+                {selectedSheet && (
+                  <span className="text-sm font-normal bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+                    Onglet : {selectedSheet}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Configurer l'onglet</label>
+                <label className="text-sm font-medium">Sélectionner un onglet à configurer</label>
                 <Select value={selectedSheet ?? undefined} onValueChange={setSelectedSheet}>
                   <SelectTrigger><SelectValue placeholder="Choisir un onglet à configurer" /></SelectTrigger>
                   <SelectContent>
                     {projectData.sheets.filter(s => s.enabled).map(sheet => (
-                      <SelectItem key={sheet.name} value={sheet.name}>{sheet.name}</SelectItem>
+                      <SelectItem key={sheet.name} value={sheet.name}>
+                        {sheet.name} {sheet.questionColumn && sheet.answerColumn ? '✓' : '⚠️'}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -154,11 +169,12 @@ export function Step2_Context() {
                           <div className="flex items-start gap-2 mb-2">
                             <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                             <p className="text-sm text-blue-800">
-                              Si vos en-têtes de colonnes ne sont pas sur la première ligne, indiquez le numéro de la ligne contenant les en-têtes.
+                              <strong>Pour l'onglet "{sheet.name}"</strong> : indiquez le numéro de la ligne contenant les noms de colonnes. 
+                              Chaque onglet peut avoir sa propre ligne d'en-tête.
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <label className="text-sm font-medium text-blue-800">Ligne d'en-tête :</label>
+                            <label className="text-sm font-medium text-blue-800">Ligne d'en-tête pour "{sheet.name}" :</label>
                             <Input
                               type="number"
                               min={1}
@@ -182,34 +198,45 @@ export function Step2_Context() {
                         {sheet.rawData && sheet.rawData.length > 0 && (
                           <div className="bg-slate-50 border rounded-md p-3">
                             <p className="text-sm font-medium text-slate-700 mb-2">
-                              Aperçu des 10 premières lignes :
+                              Aperçu des lignes (numéros Excel) - La ligne {sheet.headerRow} est utilisée comme en-tête :
                             </p>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                               <table className="text-xs border-collapse w-full">
                                 <tbody>
-                                  {sheet.rawData.slice(0, 10).map((row, rowIdx) => (
-                                    <tr 
-                                      key={rowIdx} 
-                                      className={rowIdx === sheet.headerRow - 1 ? 'bg-green-100 font-semibold' : ''}
-                                    >
-                                      <td className="border px-2 py-1 bg-slate-200 text-slate-600 font-medium">
-                                        {rowIdx + 1}
-                                      </td>
-                                      {(row as any[]).slice(0, 8).map((cell, cellIdx) => (
-                                        <td key={cellIdx} className="border px-2 py-1 max-w-[150px] truncate">
-                                          {cell?.toString() || ''}
+                                  {sheet.rawData.slice(0, Math.max(15, sheet.headerRow + 5)).map((row, rowIdx) => {
+                                    const excelRowNumber = rowIdx + 1; // Numéro de ligne Excel (1-based)
+                                    const isHeaderRow = excelRowNumber === sheet.headerRow;
+                                    const isDataRow = excelRowNumber > sheet.headerRow;
+                                    return (
+                                      <tr 
+                                        key={rowIdx} 
+                                        className={cn(
+                                          isHeaderRow && 'bg-green-100 font-semibold',
+                                          !isHeaderRow && !isDataRow && 'bg-slate-100 text-slate-400'
+                                        )}
+                                      >
+                                        <td className={cn(
+                                          "border px-2 py-1 font-medium text-center w-12",
+                                          isHeaderRow ? "bg-green-200 text-green-800" : "bg-slate-200 text-slate-600"
+                                        )}>
+                                          {excelRowNumber}
                                         </td>
-                                      ))}
-                                      {(row as any[]).length > 8 && (
-                                        <td className="border px-2 py-1 text-slate-400">...</td>
-                                      )}
-                                    </tr>
-                                  ))}
+                                        {(row as any[]).slice(0, 8).map((cell, cellIdx) => (
+                                          <td key={cellIdx} className="border px-2 py-1 max-w-[150px] truncate">
+                                            {cell?.toString() || <span className="text-slate-300">-</span>}
+                                          </td>
+                                        ))}
+                                        {(row as any[]).length > 8 && (
+                                          <td className="border px-2 py-1 text-slate-400">...</td>
+                                        )}
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                              La ligne surlignée en vert est utilisée comme en-tête.
+                              La ligne surlignée en vert (ligne {sheet.headerRow}) est utilisée comme en-tête. Les lignes grisées au-dessus sont ignorées.
                             </p>
                           </div>
                         )}
@@ -268,11 +295,13 @@ export function Step2_Context() {
                 return (
                   <div 
                     key={sheet.name}
+                    onClick={() => setSelectedSheet(sheet.name)}
                     className={cn(
-                      "relative p-4 rounded-lg border-2 transition-all",
+                      "relative p-4 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md",
                       isComplete 
-                        ? "bg-green-50 border-green-300" 
-                        : "bg-amber-50 border-amber-300"
+                        ? "bg-green-50 border-green-300 hover:border-green-400" 
+                        : "bg-amber-50 border-amber-300 hover:border-amber-400",
+                      selectedSheet === sheet.name && "ring-2 ring-blue-500 ring-offset-2"
                     )}
                   >
                     {/* Badge de statut */}
@@ -293,7 +322,7 @@ export function Step2_Context() {
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Ligne d'en-tête:</span>
-                        <span className="font-medium text-slate-700">{sheet.headerRow}</span>
+                        <span className="font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded">{sheet.headerRow}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Questions:</span>
@@ -322,6 +351,9 @@ export function Step2_Context() {
                         <span className="font-medium text-slate-700">{sheet.rows.length}</span>
                       </div>
                     </div>
+                    
+                    {/* Indication de clic */}
+                    <p className="text-xs text-slate-400 mt-2 text-center">Cliquer pour configurer</p>
                   </div>
                 );
               })}
