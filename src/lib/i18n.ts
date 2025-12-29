@@ -16,6 +16,7 @@ export const translations = {
     success: "Succès",
     error: "Erreur",
     warning: "Attention",
+    backToConfig: "Retour à la configuration",
     
     // Stepper
     step1Label: "Configuration",
@@ -168,6 +169,7 @@ export const translations = {
     success: "Success",
     error: "Error",
     warning: "Warning",
+    backToConfig: "Back to configuration",
     
     // Stepper
     step1Label: "Configuration",

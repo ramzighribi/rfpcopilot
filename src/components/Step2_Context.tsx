@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { UploadCloud, FileText, Loader2, Info, Check, Table2 } from "lucide-react";
+import { UploadCloud, FileText, Loader2, Info, Check, Table2, RotateCcw } from "lucide-react";
 import { ChangeEvent, useState } from "react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/LanguageContext";
 
 export function Step2_Context() {
-  const { projectData, setProjectData, setMapping, setHeaderRow, toggleSheetEnabled } = useProjectStore();
+  const { projectData, setProjectData, setMapping, setHeaderRow, toggleSheetEnabled, setCurrentStep } = useProjectStore();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
   const { t } = useLanguage();
@@ -399,6 +399,18 @@ export function Step2_Context() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bouton Retour à la configuration */}
+      <div className="flex justify-center pt-4">
+        <Button 
+          variant="outline" 
+          onClick={() => setCurrentStep(1)}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-800"
+        >
+          <RotateCcw className="w-4 h-4" />
+          {t('backToConfig')}
+        </Button>
+      </div>
     </div>
   );
 }

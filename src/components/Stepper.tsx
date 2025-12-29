@@ -4,6 +4,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 
 export function Stepper() {
   const currentStep = useProjectStore((state) => state.currentStep);
+  const setCurrentStep = useProjectStore((state) => state.setCurrentStep);
   const { t } = useLanguage();
   
   const steps = [t('step1Label'), t('step2Label'), t('step3Label'), t('step4Label')];
@@ -18,17 +19,21 @@ export function Stepper() {
 
           return (
             <div key={label} className="flex items-center flex-1">
-              <div className="flex flex-col items-center">
+              <div 
+                className="flex flex-col items-center cursor-pointer group"
+                onClick={() => setCurrentStep(stepNumber)}
+              >
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
-                    ${isCompleted ? 'bg-green-500 text-white' : ''}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                    ${isCompleted ? 'bg-green-500 text-white group-hover:bg-green-600' : ''}
                     ${isActive ? 'bg-slate-900 text-white' : ''}
-                    ${!isCompleted && !isActive ? 'bg-slate-200 text-slate-500' : ''}
+                    ${!isCompleted && !isActive ? 'bg-slate-200 text-slate-500 group-hover:bg-slate-300' : ''}
                   `}
                 >
                   {isCompleted ? '✓' : stepNumber}
                 </div>
-                <p className={`mt-2 text-xs text-center font-semibold ${isActive ? 'text-slate-900' : 'text-slate-500'}`}>
+                <p className={`mt-2 text-xs text-center font-semibold transition-colors
+                  ${isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
                   {label}
                 </p>
               </div>
