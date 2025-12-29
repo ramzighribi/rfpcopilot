@@ -9,11 +9,13 @@ import { ChangeEvent, useState } from "react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export function Step2_Context() {
   const { projectData, setProjectData, setMapping, setHeaderRow, toggleSheetEnabled } = useProjectStore();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -30,23 +32,27 @@ export function Step2_Context() {
           const worksheet = workbook.Sheets[name];
           
           // Déterminer la plage réelle du worksheet
-          const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
-          
-          // Forcer la lecture depuis la ligne 0 (A1) même si les premières lignes sont vides
-          // En modifiant la plage pour commencer à la ligne 0
-          if (range && range.s.r > 0) {
-            // La plage ne commence pas à la ligne 0, on la force
-            range.s.r = 0;
-            worksheet['!ref'] = XLSX.utils.encode_range(range);
+          const ref = worksheet['!ref'];
+          if (!ref) {
+            return { name, columns: [], rows: [], questionColumn: null, answerColumn: null, headerRow: 1, rawData: [], enabled: true };
           }
           
-          // Stocker toutes les données brutes AVEC les lignes vides pour garder la numérotation Excel
-          const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1, 
-            defval: '',  // Valeur par défaut pour les cellules vides
-            blankrows: true,  // Garder les lignes vides
-            raw: false  // Convertir les dates/nombres en strings
-          });
+          const range = XLSX.utils.decode_range(ref);
+          const lastCol = range.e.c; // Dernière colonne (0-indexed)
+          const lastRow = range.e.r; // Dernière ligne (0-indexed)
+          
+          // Construire rawData en accédant directement aux cellules
+          // Cela garantit que les numéros de lignes correspondent EXACTEMENT à Excel
+          const rawData: any[][] = [];
+          for (let r = 0; r <= lastRow; r++) {
+            const row: any[] = [];
+            for (let c = 0; c <= lastCol; c++) {
+              const cellAddress = XLSX.utils.encode_cell({ r, c });
+              const cell = worksheet[cellAddress];
+              row.push(cell ? cell.v : '');
+            }
+            rawData.push(row);
+          }
           
           const headerRow = 1; // Par défaut, la première ligne
           const columns = rawData.length > 0 ? rawData[0].map((cell: any) => cell?.toString() || '') : [];
@@ -55,7 +61,7 @@ export function Step2_Context() {
         });
 
         if (sheets.length === 0 || sheets.every(s => s.columns.length === 0)) {
-          toast.error("Le fichier semble vide ou ne contient pas d'en-têtes.");
+          toast.error(t('fileEmpty'));
           return;
         }
 
@@ -68,7 +74,7 @@ export function Step2_Context() {
         setSelectedSheet(sheets[0].name);
       } catch (error) {
         console.error("Erreur lors de la lecture du fichier Excel :", error);
-        toast.error("Le format du fichier est invalide.", { description: "Veuillez vérifier qu'il s'agit d'un fichier .xlsx valide." });
+        toast.error(t('fileInvalid'), { description: t('fileInvalidDesc') });
       } finally {
         setIsLoading(false);
       }
@@ -78,12 +84,12 @@ export function Step2_Context() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Étape 2 : Définition du Contexte</h2>
-      <p className="text-slate-600">Chargez un fichier Excel (.xlsx) et définissez les colonnes de travail.</p>
+      <h2 className="text-2xl font-bold">{t('step2Title')}</h2>
+      <p className="text-slate-600">{t('step2Description')}</p>
       
       <Card>
         <CardHeader>
-          <CardTitle>Chargement du Fichier</CardTitle>
+          <CardTitle>{t('fileLoading')}</CardTitle>
         </CardHeader>
         <CardContent>
           {!projectData ? (
@@ -94,7 +100,7 @@ export function Step2_Context() {
                 <UploadCloud className="w-8 h-8 text-slate-500" />
               )}
               <p className="mt-2 text-sm text-slate-600">
-                {isLoading ? "Analyse du fichier..." : "Cliquez ou glissez-déposez un fichier .xlsx"}
+                {isLoading ? t('fileAnalyzing') : t('fileDragDrop')}
               </p>
               <input type="file" className="hidden" accept=".xlsx" onChange={handleFileChange} disabled={isLoading} />
             </label>
@@ -104,63 +110,29 @@ export function Step2_Context() {
                   <FileText className="w-6 h-6 text-slate-700" />
                   <p className="ml-4 font-medium">{projectData.fileName}</p>
                 </div>
-                <Button variant="link" size="sm" onClick={() => setProjectData(null!)}>Changer</Button>
+                <Button variant="link" size="sm" onClick={() => setProjectData(null!)}>{t('change')}</Button>
              </div>
           )}
         </CardContent>
       </Card>
       
-      {projectData && (
-        <Card>
-            <CardHeader><CardTitle>Sélection des Onglets</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-slate-600">Cliquez sur les onglets à traiter. Les onglets sélectionnés sont surlignés en bleu.</p>
-              <div className="flex flex-wrap gap-2">
-                {projectData.sheets.map(sheet => (
-                  <button
-                    key={sheet.name}
-                    onClick={() => toggleSheetEnabled(sheet.name)}
-                    className={cn(
-                      "relative flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200",
-                      "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                      sheet.enabled
-                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                        : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
-                    )}
-                  >
-                    <Table2 className="w-4 h-4" />
-                    <span className="font-medium">{sheet.name}</span>
-                    <span className="text-xs opacity-70">({sheet.rows.length} lignes)</span>
-                    {sheet.enabled && (
-                      <Check className="w-4 h-4 text-blue-600 ml-1" />
-                    )}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-slate-500">
-                {projectData.sheets.filter(s => s.enabled).length} / {projectData.sheets.length} onglet(s) sélectionné(s)
-              </p>
-            </CardContent>
-        </Card>
-      )}
-
-      {projectData && projectData.sheets.some(s => s.enabled) && (
+      {projectData && projectData.sheets.length > 0 && (
         <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Configuration des Colonnes</span>
+                <span>{t('columnConfig')}</span>
                 {selectedSheet && (
                   <span className="text-sm font-normal bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
-                    Onglet : {selectedSheet}
+                    {t('currentSheet')} : {selectedSheet}
                   </span>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Sélectionner un onglet à configurer</label>
+                <label className="text-sm font-medium">{t('selectSheetToConfigure')}</label>
                 <Select value={selectedSheet ?? undefined} onValueChange={setSelectedSheet}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un onglet à configurer" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('chooseSheet')} /></SelectTrigger>
                   <SelectContent>
                     {projectData.sheets.filter(s => s.enabled).map(sheet => (
                       <SelectItem key={sheet.name} value={sheet.name}>
@@ -183,12 +155,11 @@ export function Step2_Context() {
                           <div className="flex items-start gap-2 mb-2">
                             <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                             <p className="text-sm text-blue-800">
-                              <strong>Pour l'onglet "{sheet.name}"</strong> : indiquez le numéro de la ligne contenant les noms de colonnes. 
-                              Chaque onglet peut avoir sa propre ligne d'en-tête.
+                              <strong>"{sheet.name}"</strong> : {t('headerRowInfo')}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <label className="text-sm font-medium text-blue-800">Ligne d'en-tête pour "{sheet.name}" :</label>
+                            <label className="text-sm font-medium text-blue-800">{t('headerRowLabel')} "{sheet.name}" :</label>
                             <Input
                               type="number"
                               min={1}
@@ -203,7 +174,7 @@ export function Step2_Context() {
                               className="w-20 h-8"
                             />
                             <span className="text-xs text-blue-600">
-                              (1 = première ligne, max: {maxRows})
+                              ({t('firstRow')}, {t('max')}: {maxRows})
                             </span>
                           </div>
                         </div>
@@ -212,7 +183,7 @@ export function Step2_Context() {
                         {sheet.rawData && sheet.rawData.length > 0 && (
                           <div className="bg-slate-50 border rounded-md p-3">
                             <p className="text-sm font-medium text-slate-700 mb-2">
-                              Aperçu des lignes (numéros Excel) - La ligne {sheet.headerRow} est utilisée comme en-tête :
+                              {t('rowPreview')} - {t('headerRowLabel')} {sheet.headerRow} {t('headerRowUsed')} :
                             </p>
                             <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                               <table className="text-xs border-collapse w-full">
@@ -250,7 +221,6 @@ export function Step2_Context() {
                               </table>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                              La ligne surlignée en vert (ligne {sheet.headerRow}) est utilisée comme en-tête. Les lignes grisées au-dessus sont ignorées.
                             </p>
                           </div>
                         )}
@@ -258,13 +228,13 @@ export function Step2_Context() {
                         {/* Mapping des colonnes */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-sm font-medium">Colonne des Questions</label>
+                            <label className="text-sm font-medium">{t('questionColumn')}</label>
                             <Select 
                               key={`question-${sheet.name}-${sheet.headerRow}`}
                               onValueChange={(value) => setMapping(sheet.name, 'question', value)} 
                               value={sheet.questionColumn || ""}
                             >
-                              <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder={t('selectQuestionCol')} /></SelectTrigger>
                               <SelectContent>
                                 {sheet.columns
                                   .filter(col => col && col.trim() !== '')
@@ -273,13 +243,13 @@ export function Step2_Context() {
                             </Select>
                           </div>
                           <div>
-                            <label className="text-sm font-medium">Colonne des Réponses (Référence)</label>
+                            <label className="text-sm font-medium">{t('answerColumn')}</label>
                             <Select 
                               key={`answer-${sheet.name}-${sheet.headerRow}`}
                               onValueChange={(value) => setMapping(sheet.name, 'answer', value)} 
                               value={sheet.answerColumn || ""}
                             >
-                              <SelectTrigger><SelectValue placeholder="Choisir une colonne..." /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder={t('selectAnswerCol')} /></SelectTrigger>
                               <SelectContent>
                                 {sheet.columns
                                   .filter(col => col && col.trim() !== '')
@@ -297,81 +267,115 @@ export function Step2_Context() {
         </Card>
       )}
 
-      {/* Récapitulatif des onglets sélectionnés */}
-      {projectData && projectData.sheets.some(s => s.enabled) && (
+      {/* Récapitulatif des onglets */}
+      {projectData && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Récapitulatif des onglets
+              {t('sheetSelection')}
             </CardTitle>
+            <p className="text-sm text-slate-600">{t('sheetSelectionHelp')}</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {projectData.sheets.filter(s => s.enabled).map(sheet => {
+              {projectData.sheets.map(sheet => {
                 const isComplete = sheet.questionColumn && sheet.answerColumn;
+                const isEnabled = sheet.enabled;
                 return (
                   <div 
                     key={sheet.name}
-                    onClick={() => setSelectedSheet(sheet.name)}
+                    onClick={() => {
+                      if (isEnabled) {
+                        setSelectedSheet(sheet.name);
+                      } else {
+                        toggleSheetEnabled(sheet.name);
+                        setSelectedSheet(sheet.name);
+                      }
+                    }}
                     className={cn(
                       "relative p-4 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md",
-                      isComplete 
-                        ? "bg-green-50 border-green-300 hover:border-green-400" 
-                        : "bg-amber-50 border-amber-300 hover:border-amber-400",
-                      selectedSheet === sheet.name && "ring-2 ring-blue-500 ring-offset-2"
+                      !isEnabled && "bg-slate-100 border-slate-200 opacity-60 hover:opacity-80",
+                      isEnabled && isComplete && "bg-green-50 border-green-300 hover:border-green-400",
+                      isEnabled && !isComplete && "bg-amber-50 border-amber-300 hover:border-amber-400",
+                      selectedSheet === sheet.name && isEnabled && "ring-2 ring-blue-500 ring-offset-2"
                     )}
                   >
-                    {/* Badge de statut */}
-                    <div className={cn(
-                      "absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                      isComplete ? "bg-green-500" : "bg-amber-500"
-                    )}>
-                      {isComplete ? <Check className="w-4 h-4" /> : "!"}
-                    </div>
+                    {/* Bouton toggle enabled */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSheetEnabled(sheet.name);
+                        if (selectedSheet === sheet.name && sheet.enabled) {
+                          setSelectedSheet(null);
+                        }
+                      }}
+                      className={cn(
+                        "absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold transition-all",
+                        isEnabled ? "bg-blue-500 hover:bg-blue-600" : "bg-slate-400 hover:bg-slate-500"
+                      )}
+                      title={isEnabled ? t('clickToDisable') : t('clickToEnable')}
+                    >
+                      {isEnabled ? <Check className="w-4 h-4" /> : <span className="text-xs">+</span>}
+                    </button>
+
+                    {/* Badge de statut (seulement si enabled) */}
+                    {isEnabled && (
+                      <div className={cn(
+                        "absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
+                        isComplete ? "bg-green-500" : "bg-amber-500"
+                      )}>
+                        {isComplete ? <Check className="w-4 h-4" /> : "!"}
+                      </div>
+                    )}
 
                     {/* Nom de l'onglet */}
                     <div className="flex items-center gap-2 mb-3">
-                      <Table2 className={cn("w-4 h-4", isComplete ? "text-green-600" : "text-amber-600")} />
-                      <span className="font-semibold text-slate-800">{sheet.name}</span>
+                      <Table2 className={cn(
+                        "w-4 h-4",
+                        !isEnabled && "text-slate-400",
+                        isEnabled && isComplete && "text-green-600",
+                        isEnabled && !isComplete && "text-amber-600"
+                      )} />
+                      <span className={cn("font-semibold", isEnabled ? "text-slate-800" : "text-slate-500")}>{sheet.name}</span>
                     </div>
 
                     {/* Détails */}
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Ligne d'en-tête:</span>
-                        <span className="font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded">{sheet.headerRow}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Questions:</span>
+                        <span className="text-slate-500">{t('headerRowLabel')}:</span>
                         <span className={cn(
                           "font-medium px-2 py-0.5 rounded",
-                          sheet.questionColumn 
-                            ? "bg-green-100 text-green-700" 
-                            : "bg-red-100 text-red-600"
+                          isEnabled ? "text-blue-700 bg-blue-100" : "text-slate-500 bg-slate-200"
+                        )}>{sheet.headerRow}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">{t('questionColumn')}:</span>
+                        <span className={cn(
+                          "font-medium px-2 py-0.5 rounded",
+                          !isEnabled && "bg-slate-200 text-slate-500",
+                          isEnabled && sheet.questionColumn && "bg-green-100 text-green-700",
+                          isEnabled && !sheet.questionColumn && "bg-red-100 text-red-600"
                         )}>
-                          {sheet.questionColumn || "Non défini"}
+                          {sheet.questionColumn || "-"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Réponses:</span>
+                        <span className="text-slate-500">{t('answerColumn')}:</span>
                         <span className={cn(
                           "font-medium px-2 py-0.5 rounded",
-                          sheet.answerColumn 
-                            ? "bg-green-100 text-green-700" 
-                            : "bg-red-100 text-red-600"
+                          !isEnabled && "bg-slate-200 text-slate-500",
+                          isEnabled && sheet.answerColumn && "bg-green-100 text-green-700",
+                          isEnabled && !sheet.answerColumn && "bg-red-100 text-red-600"
                         )}>
-                          {sheet.answerColumn || "Non défini"}
+                          {sheet.answerColumn || "-"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                        <span className="text-slate-500">Lignes:</span>
+                        <span className="text-slate-500">{t('rows')}:</span>
                         <span className="font-medium text-slate-700">{sheet.rows.length}</span>
                       </div>
                     </div>
-                    
-                    {/* Indication de clic */}
-                    <p className="text-xs text-slate-400 mt-2 text-center">Cliquer pour configurer</p>
                   </div>
                 );
               })}
@@ -383,13 +387,13 @@ export function Step2_Context() {
                 <span className="font-medium">{projectData.sheets.filter(s => s.enabled && s.questionColumn && s.answerColumn).length}</span>
                 <span> / </span>
                 <span className="font-medium">{projectData.sheets.filter(s => s.enabled).length}</span>
-                <span> onglet(s) prêt(s)</span>
+                <span> {t('sheetsConfigured')}</span>
               </div>
               <div className="text-sm text-slate-600">
                 <span className="font-medium">
                   {projectData.sheets.filter(s => s.enabled).reduce((acc, s) => acc + s.rows.length, 0)}
                 </span>
-                <span> lignes au total</span>
+                <span> {t('lines')}</span>
               </div>
             </div>
           </CardContent>

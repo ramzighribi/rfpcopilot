@@ -9,10 +9,12 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function Home() {
   const { currentStep, setCurrentStep, llmConfigs, projectData, results } = useProjectStore();
   const [isHydrated, setIsHydrated] = useState(false);
+  const { t } = useLanguage();
 
   // Attendre que le store soit synchronisé avec le localStorage
   useEffect(() => {
@@ -33,18 +35,18 @@ export default function Home() {
   // Messages d'aide pour comprendre pourquoi le bouton est désactivé
   const getNextButtonHelp = () => {
     if (currentStep === 1 && !isStep1Complete) {
-      return "Validez au moins une configuration LLM pour continuer.";
+      return t('validateAtLeastOneLLM');
     }
     if (currentStep === 2 && !isStep2Complete) {
-      if (!projectData) return "Chargez un fichier Excel pour continuer.";
-      if (enabledSheets.length === 0) return "Sélectionnez au moins un onglet à traiter.";
+      if (!projectData) return t('loadExcelFile');
+      if (enabledSheets.length === 0) return t('selectAtLeastOneSheet');
       const missingSheets = enabledSheets.filter(s => !s.questionColumn || !s.answerColumn);
       if (missingSheets.length === enabledSheets.length) {
-        return "Définissez les colonnes Question et Réponse pour au moins un onglet sélectionné.";
+        return t('defineQuestionAnswerColumns');
       }
     }
     if (currentStep === 3 && !isStep3Complete) {
-      return "Lancez la génération pour continuer.";
+      return t('startGenerationToContinue');
     }
     return null;
   };
@@ -92,7 +94,7 @@ export default function Home() {
         <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 via-purple-500 to-indigo-400 text-transparent bg-clip-text">
           RFP Studio
         </h1>
-        <p className="text-lg text-muted-foreground mt-2">Générez et validez des réponses avancées à grande échelle.</p>
+        <p className="text-lg text-muted-foreground mt-2">{t('appDescription')}</p>
       </div>
 
       <Stepper />
@@ -104,12 +106,12 @@ export default function Home() {
       <div className="mt-8 max-w-4xl mx-auto flex flex-col gap-2">
         <div className="flex justify-between">
           <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
-            &larr; Précédent
+            &larr; {t('previous')}
           </Button>
           
           {currentStep < 4 && (
             <Button onClick={handleNext} disabled={!canGoNext()}>
-              Suivant &rarr;
+              {t('next')} &rarr;
             </Button>
           )}
         </div>

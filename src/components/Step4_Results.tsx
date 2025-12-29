@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Loader2, GripVertical, Search } from "lucide-react";
 import { generateSingleLLMResponse } from "@/app/actions";
 import * as XLSX from 'xlsx';
+import { useLanguage } from "@/lib/LanguageContext";
 
 import {
   ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel,
@@ -40,6 +41,7 @@ function ResultDetailSheet() {
     selectedResultIndex, results, llmConfigs, setSelectedResultIndex, 
     updateSingleResult, generationParams 
   } = useProjectStore();
+  const { t } = useLanguage();
 
   const [editableResult, setEditableResult] = useState<GenerationResult | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -57,7 +59,7 @@ function ResultDetailSheet() {
   const handleSave = () => {
     if (selectedResultIndex !== null && editableResult) {
       updateSingleResult(selectedResultIndex, editableResult);
-      toast.success("Modifications enregistrées !");
+      toast.success(t('changesSaved'));
       setSelectedResultIndex(null);
     }
   };
@@ -72,7 +74,7 @@ function ResultDetailSheet() {
     if (!editableResult) return;
     
     setIsRegenerating(true);
-    toast.info("Régénération en cours...");
+    toast.info(t('regenerating'));
     
     try {
       const { result: regenResult } = await generateSingleLLMResponse(
@@ -93,10 +95,10 @@ function ResultDetailSheet() {
       }
       
       setEditableResult(updatedResult);
-      toast.success("Réponse régénérée avec succès !");
+      toast.success(t('regenerationSuccess'));
 
     } catch (error: any) {
-      toast.error("La régénération a échoué.", { description: error.message });
+      toast.error(t('regenerationFailed'), { description: error.message });
     } finally {
       setIsRegenerating(false);
     }
@@ -107,28 +109,28 @@ function ResultDetailSheet() {
   return (
     <Sheet open={selectedResultIndex !== null} onOpenChange={(isOpen) => !isRegenerating && setSelectedResultIndex(isOpen ? selectedResultIndex : null)}>
       <SheetContent className="w-full md:w-[60vw] sm:max-w-none flex flex-col">
-        <SheetHeader><SheetTitle>Détail et Modification</SheetTitle></SheetHeader>
+        <SheetHeader><SheetTitle>{t('detailAndEdit')}</SheetTitle></SheetHeader>
         {isRegenerating && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-            <Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Régénération en cours...</p>
+            <Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">{t('regenerating')}</p>
           </div>
         )}
         <div className="space-y-4 py-4 flex-1 overflow-y-auto">
-          <Card><CardHeader><CardTitle>Question</CardTitle></CardHeader><CardContent><p className="text-sm font-medium">{editableResult.question}</p></CardContent></Card>
+          <Card><CardHeader><CardTitle>{t('question')}</CardTitle></CardHeader><CardContent><p className="text-sm font-medium">{editableResult.question}</p></CardContent></Card>
           {llmConfigs.filter(c => c.isValidated).map(config => (
             <Card key={config.id}>
-              <CardHeader><CardTitle>Réponse de {config.provider}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t('responseFrom')} {config.provider}</CardTitle></CardHeader>
               <CardContent><Textarea value={editableResult[config.provider] || ''} onChange={(e) => handleFieldChange(config.provider, e.target.value)} className="h-48 whitespace-pre-wrap font-mono text-xs" /></CardContent>
             </Card>
           ))}
           {llmConfigs.some(c => c.isValidated) && (
             <Card>
-              <CardHeader><CardTitle>Réponse choisie pour l'export</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t('chosenResponse')}</CardTitle></CardHeader>
               <CardContent>
                 <Select value={editableResult.selectedAnswer || ''} onValueChange={(v) => handleFieldChange('selectedAnswer', v)}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un provider" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('chooseProvider')} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">(première réponse non vide)</SelectItem>
+                    <SelectItem value="">{t('firstNonEmpty')}</SelectItem>
                     {llmConfigs.filter(c => c.isValidated).map(c => (
                       <SelectItem key={c.id} value={c.provider}>{c.provider}</SelectItem>
                     ))}
@@ -137,33 +139,33 @@ function ResultDetailSheet() {
               </CardContent>
             </Card>
           )}
-          <Card><CardHeader><CardTitle>Validation</CardTitle></CardHeader>
+          <Card><CardHeader><CardTitle>{t('validation')}</CardTitle></CardHeader>
             <CardContent>
               <RadioGroup value={editableResult.status} onValueChange={(value) => handleFieldChange('status', value)}>
-                <div className="flex items-center space-x-2"><RadioGroupItem value="Validée" id="s-validee" /><Label htmlFor="s-validee">Validée</Label></div>
-                <div className="flex items-center space-x-2"><RadioGroupItem value="Doute" id="s-doute" /><Label htmlFor="s-doute">Doute</Label></div>
-                <div className="flex items-center space-x-2"><RadioGroupItem value="Refusée" id="s-refusee" /><Label htmlFor="s-refusee">Refusée</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Validée" id="s-validee" /><Label htmlFor="s-validee">{t('validated')}</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Doute" id="s-doute" /><Label htmlFor="s-doute">{t('doubt')}</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="Refusée" id="s-refusee" /><Label htmlFor="s-refusee">{t('rejected')}</Label></div>
               </RadioGroup>
             </CardContent>
           </Card>
         </div>
         <SheetFooter>
           <Dialog>
-            <DialogTrigger asChild><Button variant="outline">Régénérer</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline">{t('regenerate')}</Button></DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Paramètres de Régénération</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{t('regenerationParams')}</DialogTitle></DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2"><Label>Langue</Label><RadioGroup value={regenParams.language} onValueChange={(v) => setRegenParams({...regenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="r-lang-fr" /><Label htmlFor="r-lang-fr">Français</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="r-lang-en" /><Label htmlFor="r-lang-en">Anglais</Label></div></RadioGroup></div>
-                <div className="space-y-2"><Label>Taille</Label><RadioGroup value={regenParams.responseLength} onValueChange={(v) => setRegenParams({...regenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="r-len-s" /><Label htmlFor="r-len-s">Courte</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="r-len-m" /><Label htmlFor="r-len-m">Moyenne</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="r-len-l" /><Label htmlFor="r-len-l">Longue</Label></div></RadioGroup></div>
-                <div className="space-y-2"><Label>Persona</Label><Select value={regenParams.persona} onValueChange={(v) => setRegenParams({...regenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2"><Label>{t('responseLanguage')}</Label><RadioGroup value={regenParams.language} onValueChange={(v) => setRegenParams({...regenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="r-lang-fr" /><Label htmlFor="r-lang-fr">{t('french')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="r-lang-en" /><Label htmlFor="r-lang-en">{t('english')}</Label></div></RadioGroup></div>
+                <div className="space-y-2"><Label>{t('responseLength')}</Label><RadioGroup value={regenParams.responseLength} onValueChange={(v) => setRegenParams({...regenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="r-len-s" /><Label htmlFor="r-len-s">{t('short')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="r-len-m" /><Label htmlFor="r-len-m">{t('medium')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="r-len-l" /><Label htmlFor="r-len-l">{t('long')}</Label></div></RadioGroup></div>
+                <div className="space-y-2"><Label>{t('persona')}</Label><Select value={regenParams.persona} onValueChange={(v) => setRegenParams({...regenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
               </div>
               <DialogFooter>
-                <DialogClose asChild><Button variant="ghost">Annuler</Button></DialogClose>
-                <DialogClose asChild><Button onClick={handleRegenerate}>Lancer la Régénération</Button></DialogClose>
+                <DialogClose asChild><Button variant="ghost">{t('cancel')}</Button></DialogClose>
+                <DialogClose asChild><Button onClick={handleRegenerate}>{t('startRegeneration')}</Button></DialogClose>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button onClick={handleSave}>Enregistrer et Fermer</Button>
+          <Button onClick={handleSave}>{t('saveAndClose')}</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
@@ -197,6 +199,7 @@ export function Step4_Results() {
     results, llmConfigs, setSelectedResultIndex, setResults,
     generationParams, columnOrder, setColumnOrder, projectData
   } = useProjectStore();
+  const { t } = useLanguage();
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -212,14 +215,14 @@ export function Step4_Results() {
   const columns = useMemo<ColumnDef<GenerationResult, any>[]>(() => [
     {
       id: 'rowNumber',
-      header: 'N°',
+      header: t('rowNumber'),
       cell: info => <div className="text-center text-muted-foreground">{info.row.index + 1}</div>,
       size: 60,
       enableResizing: false,
     },
     {
       accessorKey: 'sheetName',
-      header: 'Onglet',
+      header: t('sheet'),
       cell: info => <div className="text-sm text-muted-foreground px-2">{info.getValue<string>()}</div>,
       size: 140,
       minSize: 100,
@@ -227,7 +230,7 @@ export function Step4_Results() {
     },
     {
   accessorKey: 'question',
-      header: 'Question',
+      header: t('question'),
       cell: info => <div className="font-medium text-sm p-2">{info.getValue<string>()}</div>,
       size: 450,
       minSize: 200,
@@ -243,7 +246,7 @@ export function Step4_Results() {
     })),
     {
       accessorKey: 'selectedAnswer',
-      header: 'Réponse choisie',
+      header: t('selectedResponse'),
       cell: (info: any) => {
         const row = info.row.original as GenerationResult;
         const handleSelect = (v: string) => {
@@ -254,9 +257,9 @@ export function Step4_Results() {
         };
         return (
           <Select value={row.selectedAnswer || '__auto__'} onValueChange={handleSelect}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Choisir" /></SelectTrigger>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('chooseProvider')} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__auto__">(première réponse non vide)</SelectItem>
+              <SelectItem value="__auto__">{t('firstNonEmpty')}</SelectItem>
               {validatedProviders.map(p => (
                 <SelectItem key={p} value={p}>{p}</SelectItem>
               ))}
@@ -270,7 +273,7 @@ export function Step4_Results() {
     },
     {
       accessorKey: 'status',
-      header: 'Statut',
+      header: t('status'),
       cell: info => {
         const status = info.getValue<GenerationResult['status']>();
         const getBadgeVariant = (s: GenerationResult['status']) => {
@@ -278,12 +281,17 @@ export function Step4_Results() {
           if (s === 'Refusée') return 'destructive';
           return 'secondary';
         };
-        return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{status}</Badge></div>;
+        const getStatusLabel = (s: GenerationResult['status']) => {
+          if (s === 'Validée') return t('validated');
+          if (s === 'Refusée') return t('rejected');
+          return t('doubt');
+        };
+        return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
       },
       size: 150,
       enableResizing: false,
     },
-  ], [validatedConfigs]);
+  ], [validatedConfigs, t]);
 
   const columnIds = useMemo(() => columns.map((c: any) => c.id || c.accessorKey as string), [columns]);
 
@@ -417,7 +425,7 @@ export function Step4_Results() {
 
     setResults(newResults);
     setIsBatchRegenerating(false);
-    toast.success("Régénération en masse terminée !");
+    toast.success(t('batchRegenComplete'));
     setTimeout(() => {
         setIsBatchRegenDialogOpen(false);
     }, 2000);
@@ -425,7 +433,7 @@ export function Step4_Results() {
 
   if (results.length === 0) { 
     return (
-      <div className="text-center py-12"><h2 className="text-xl font-bold">Étape 4 : Résultats</h2><p className="text-slate-600 mt-4">Aucun résultat. Lancez une génération à l'étape 3.</p></div>
+      <div className="text-center py-12"><h2 className="text-xl font-bold">{t('step4Title')}</h2><p className="text-slate-600 mt-4">{t('noResults')}</p></div>
     );
   }
 
@@ -440,45 +448,45 @@ export function Step4_Results() {
 
   return (
     <div className="space-y-4 w-full">
-      <h2 className="text-2xl font-bold">Étape 4 : Résultats</h2>
-      <p className="text-slate-600">Filtrez, triez, réorganisez, redimensionnez et exportez vos résultats.</p>
+      <h2 className="text-2xl font-bold">{t('step4Title')}</h2>
+      <p className="text-slate-600">{t('step4Description')}</p>
       
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 p-4 rounded-lg border">
         <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Rechercher sur toutes les colonnes..." value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} className="pl-10"/>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder={t('search')} value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} className="pl-10"/>
         </div>
         <div className="flex gap-4 items-center w-full md:w-auto">
           <Select value={table.getColumn('status')?.getFilterValue() as string ?? ''} onValueChange={value => table.getColumn('status')?.setFilterValue(value === 'Tous' ? '' : value)}>
-            <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Filtrer par statut..." /></SelectTrigger>
+            <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder={t('status')} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="Tous">Tous les statuts</SelectItem><SelectItem value="Validée">Validée</SelectItem><SelectItem value="Doute">Doute</SelectItem><SelectItem value="Refusée">Refusée</SelectItem>
+              <SelectItem value="Tous">All</SelectItem><SelectItem value="Validée">{t('validated')}</SelectItem><SelectItem value="Doute">{t('doubt')}</SelectItem><SelectItem value="Refusée">{t('rejected')}</SelectItem>
             </SelectContent>
           </Select>
           <Dialog open={isBatchRegenDialogOpen} onOpenChange={setIsBatchRegenDialogOpen}>
-            <DialogTrigger asChild><Button variant="outline">Régénérer les échecs</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline">{t('batchRegenerate')}</Button></DialogTrigger>
             <DialogContent onInteractOutside={(e) => { if(isBatchRegenerating) e.preventDefault() }}>
-              <DialogHeader><DialogTitle>Régénération en Masse</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{t('batchRegenerate')}</DialogTitle></DialogHeader>
               {isBatchRegenerating ? (
                 <div className="py-4 space-y-4">
-                  <p>La régénération est en cours. Veuillez patienter.</p><Progress value={(batchRegenProgress.current / batchRegenProgress.total) * 100} />
-                  <p className="text-sm text-center text-muted-foreground">{batchRegenProgress.current} / {batchRegenProgress.total} réponses traitées</p>
+                  <p>{t('batchRegenProgress')}</p><Progress value={(batchRegenProgress.current / batchRegenProgress.total) * 100} />
+                  <p className="text-sm text-center text-muted-foreground">{batchRegenProgress.current} / {batchRegenProgress.total}</p>
                 </div>
               ) : (
                 <>
                   <div className="space-y-4 py-4">
-                    <div className="space-y-2"><Label>Langue</Label><RadioGroup value={batchRegenParams.language} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="br-lang-fr" /><Label htmlFor="br-lang-fr">Français</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="br-lang-en" /><Label htmlFor="br-lang-en">Anglais</Label></div></RadioGroup></div>
-                    <div className="space-y-2"><Label>Taille</Label><RadioGroup value={batchRegenParams.responseLength} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="br-len-s" /><Label htmlFor="br-len-s">Courte</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="br-len-m" /><Label htmlFor="br-len-m">Moyenne</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="br-len-l" /><Label htmlFor="br-len-l">Longue</Label></div></RadioGroup></div>
-                    <div className="space-y-2"><Label>Persona</Label><Select value={batchRegenParams.persona} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label>{t('responseLanguage')}</Label><RadioGroup value={batchRegenParams.language} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="br-lang-fr" /><Label htmlFor="br-lang-fr">{t('french')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="br-lang-en" /><Label htmlFor="br-lang-en">{t('english')}</Label></div></RadioGroup></div>
+                    <div className="space-y-2"><Label>{t('responseLength')}</Label><RadioGroup value={batchRegenParams.responseLength} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="br-len-s" /><Label htmlFor="br-len-s">{t('short')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="br-len-m" /><Label htmlFor="br-len-m">{t('medium')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="br-len-l" /><Label htmlFor="br-len-l">{t('long')}</Label></div></RadioGroup></div>
+                    <div className="space-y-2"><Label>{t('persona')}</Label><Select value={batchRegenParams.persona} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                   <DialogFooter>
-                      <Button variant="ghost" onClick={() => setIsBatchRegenDialogOpen(false)}>Annuler</Button>
-                      <Button onClick={handleBatchRegenerate}>Lancer la Régénération</Button>
+                      <Button variant="ghost" onClick={() => setIsBatchRegenDialogOpen(false)}>{t('cancel')}</Button>
+                      <Button onClick={handleBatchRegenerate}>{t('startRegeneration')}</Button>
                   </DialogFooter>
                 </>
               )}
             </DialogContent>
           </Dialog>
-          <Button onClick={handleExport} disabled={isBatchRegenerating}>Exporter</Button>
+          <Button onClick={handleExport} disabled={isBatchRegenerating}>{t('exportExcel')}</Button>
         </div>
       </div>
       

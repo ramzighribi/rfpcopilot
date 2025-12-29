@@ -10,6 +10,7 @@ import { Trash2, PlusCircle, CheckCircle, XCircle, Loader2, TestTube2, Save, Fol
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { testLLMConnection, debugAzureConnection } from "@/app/actions";
+import { useLanguage } from "@/lib/LanguageContext";
 
 // On ajoute Anthropic à la liste
 const llmOptions = ['OpenAI', 'Azure OpenAI', 'Anthropic', 'Google', 'Mistral'];
@@ -21,6 +22,7 @@ export function Step1_Config() {
   const [testStatus, setTestStatus] = useState<Record<string, 'testing' | 'success' | 'error' | 'idle'>>({});
   const [debugState, setDebugState] = useState<{ isLoading: boolean; logs: string[] }>({ isLoading: false, logs: [] });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const handleTestConnection = async (configId: string, index: number) => {
     setTestStatus(prev => ({ ...prev, [configId]: 'testing' }));
@@ -33,11 +35,11 @@ export function Step1_Config() {
     if (result.success) {
       updateLlmConfig(index, { isValidated: true });
       setTestStatus(prev => ({ ...prev, [configId]: 'success' }));
-      toast.success("Succès", { description: result.message });
+      toast.success(t('success'), { description: result.message });
     } else {
       updateLlmConfig(index, { isValidated: false });
       setTestStatus(prev => ({ ...prev, [configId]: 'error' }));
-      toast.error("Échec", { description: result.message });
+      toast.error(t('error'), { description: result.message });
     }
   };
 
@@ -56,7 +58,7 @@ export function Step1_Config() {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', 'rfp-studio-config.json');
     linkElement.click();
-    toast.success("Configuration sauvegardée !");
+    toast.success(t('configSaved'));
   };
 
   const handleLoadConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,9 +70,9 @@ export function Step1_Config() {
         const text = e.target?.result as string;
         const configs = JSON.parse(text) as LLMConfig[];
         loadLlmConfigs(configs);
-        toast.success("Configuration chargée avec succès !");
+        toast.success(t('configLoaded'));
       } catch (error) {
-        toast.error("Le fichier de configuration est invalide.");
+        toast.error(t('configInvalid'));
       }
     };
     reader.readAsText(file);
@@ -80,10 +82,10 @@ export function Step1_Config() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Étape 1 : Connectez vos modèles (LLM)</h2>
+        <h2 className="text-2xl font-bold">{t('step1Title')}</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleSaveConfig}><Save className="h-4 w-4 mr-2"/>Sauvegarder</Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><FolderOpen className="h-4 w-4 mr-2"/>Charger</Button>
+          <Button variant="outline" size="sm" onClick={handleSaveConfig}><Save className="h-4 w-4 mr-2"/>{t('save')}</Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><FolderOpen className="h-4 w-4 mr-2"/>{t('load')}</Button>
           <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleLoadConfig} />
         </div>
       </div>
@@ -91,14 +93,14 @@ export function Step1_Config() {
       {llmConfigs.map((config, index) => (
         <Card key={config.id} className={`border-l-4 ${cardColors[index % cardColors.length]}`}>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Configuration LLM #{index + 1}</CardTitle>
+            <CardTitle className="text-lg">{t('llmConfigTitle')} #{index + 1}</CardTitle>
             <Button variant="ghost" size="icon" onClick={() => removeLlmConfig(index)}><Trash2 className="h-4 w-4" /></Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Fournisseur</label>
+              <label className="text-sm font-medium">{t('provider')}</label>
               <Select value={config.provider} onValueChange={(v) => updateLlmConfig(index, { provider: v, isValidated: false })}>
-                <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="..." /></SelectTrigger>
                 <SelectContent>{llmOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -106,23 +108,23 @@ export function Step1_Config() {
             {config.provider === 'Azure OpenAI' && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Méthode d'authentification</label>
+                  <label className="text-sm font-medium">{t('authMode')}</label>
                   <div className="flex gap-2">
                     <Button
                       variant={config.azureAuthMode !== 'entraId' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => updateLlmConfig(index, { azureAuthMode: 'apiKey', apiKey: config.apiKey })}
-                    >API Key</Button>
+                    >{t('authModeApiKey')}</Button>
                     <Button
                       variant={config.azureAuthMode === 'entraId' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => updateLlmConfig(index, { azureAuthMode: 'entraId' })}
-                    >Azure Entra ID</Button>
+                    >{t('authModeEntraId')}</Button>
                   </div>
                 </div>
-                <div className="space-y-2"><label className="text-sm font-medium">Endpoint URL</label><Input placeholder="https://..." value={config.endpoint} onChange={(e) => updateLlmConfig(index, { endpoint: e.target.value })} /></div>
+                <div className="space-y-2"><label className="text-sm font-medium">{t('endpoint')}</label><Input placeholder="https://..." value={config.endpoint} onChange={(e) => updateLlmConfig(index, { endpoint: e.target.value })} /></div>
                 {config.azureAuthMode !== 'entraId' && (
-                  <div className="space-y-2"><label className="text-sm font-medium">Clé API</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
+                  <div className="space-y-2"><label className="text-sm font-medium">{t('apiKey')}</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><label className="text-sm font-medium">API Version</label><Input placeholder="2025-01-01-preview" value={config.apiVersion} onChange={(e) => updateLlmConfig(index, { apiVersion: e.target.value })} /></div>
@@ -133,9 +135,9 @@ export function Step1_Config() {
 
             {config.provider === 'Google' && (
               <>
-                <div className="space-y-2"><label className="text-sm font-medium">Clé API</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
+                <div className="space-y-2"><label className="text-sm font-medium">{t('apiKey')}</label><Input type="password" value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Modèle</label>
+                  <label className="text-sm font-medium">{t('modelName')}</label>
                   <Select value={config.model} onValueChange={(v) => updateLlmConfig(index, { model: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{googleModels.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
@@ -145,24 +147,24 @@ export function Step1_Config() {
             )}
 
             {config.provider && !['Azure OpenAI', 'Google'].includes(config.provider) && (
-               <div className="space-y-2"><label className="text-sm font-medium">Clé API</label><Input type="password" placeholder="sk-..." value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
+               <div className="space-y-2"><label className="text-sm font-medium">{t('apiKey')}</label><Input type="password" placeholder="sk-..." value={config.apiKey} onChange={(e) => updateLlmConfig(index, { apiKey: e.target.value })} /></div>
             )}
             
             <div className="flex items-center space-x-2">
               <Button onClick={() => handleTestConnection(config.id, index)} disabled={!config.provider || testStatus[config.id] === 'testing'}>
-                {testStatus[config.id] === 'testing' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{testStatus[config.id] === 'success' && <CheckCircle className="mr-2 h-4 w-4 text-green-500" />}{testStatus[config.id] === 'error' && <XCircle className="mr-2 h-4 w-4 text-red-500" />}Tester la connexion
+                {testStatus[config.id] === 'testing' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{testStatus[config.id] === 'success' && <CheckCircle className="mr-2 h-4 w-4 text-green-500" />}{testStatus[config.id] === 'error' && <XCircle className="mr-2 h-4 w-4 text-red-500" />}{t('testConnection')}
               </Button>
 
               {config.provider === 'Azure OpenAI' && (
                 <Dialog>
-                  <DialogTrigger asChild><Button variant="outline" onClick={() => handleAdvancedDebug(index)}><TestTube2 className="h-4 w-4 mr-2" />Advanced Debug</Button></DialogTrigger>
+                  <DialogTrigger asChild><Button variant="outline" onClick={() => handleAdvancedDebug(index)}><TestTube2 className="h-4 w-4 mr-2" />{t('advancedDebug')}</Button></DialogTrigger>
                   <DialogContent className="sm:max-w-[625px]">
-                    <DialogHeader><DialogTitle>Journal de Débogage Azure OpenAI</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{t('debugLogs')}</DialogTitle></DialogHeader>
                     <div className="h-96 overflow-y-auto bg-slate-900 text-white font-mono text-xs p-4 rounded-md">
-                      {debugState.isLoading && <div className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span>Test en cours...</span></div>}
+                      {debugState.isLoading && <div className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /><span>{t('testing')}</span></div>}
                       {debugState.logs.map((log, i) => (<p key={i} className={`${log.includes('❌') || log.includes('ERREUR') ? 'text-red-400' : ''} ${log.includes('✅') ? 'text-green-400' : ''}`}>{log}</p>))}
                     </div>
-                    <DialogFooter><Button onClick={() => setDebugState({isLoading: false, logs: []})}>Fermer</Button></DialogFooter>
+                    <DialogFooter><Button onClick={() => setDebugState({isLoading: false, logs: []})}>{t('close')}</Button></DialogFooter>
                   </DialogContent>
                 </Dialog>
               )}
@@ -171,7 +173,7 @@ export function Step1_Config() {
         </Card>
       ))}
 
-      <Button variant="outline" onClick={addLlmConfig}><PlusCircle className="mr-2 h-4 w-4" /> Ajouter un modèle</Button>
+      <Button variant="outline" onClick={addLlmConfig}><PlusCircle className="mr-2 h-4 w-4" /> {t('addLlm')}</Button>
     </div>
   );
 }

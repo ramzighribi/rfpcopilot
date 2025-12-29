@@ -1,10 +1,12 @@
 'use client';
 import { useProjectStore } from '@/store/useProjectStore';
-
-const steps = ['Configuration', 'Contexte', 'Playground', 'Résultats'];
+import { useLanguage } from '@/lib/LanguageContext';
 
 export function Stepper() {
   const currentStep = useProjectStore((state) => state.currentStep);
+  const { t } = useLanguage();
+  
+  const steps = [t('step1Label'), t('step2Label'), t('step3Label'), t('step4Label')];
 
   return (
     <div className="w-full max-w-2xl mx-auto my-8">
