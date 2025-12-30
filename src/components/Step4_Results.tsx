@@ -12,9 +12,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { useState, useEffect, useMemo, FC } from "react";
+import { useState, useEffect, useMemo, FC, useRef } from "react";
 import { toast } from "sonner";
-import { Loader2, GripVertical, Search } from "lucide-react";
+import { Loader2, GripVertical, Search, ArrowDown, ArrowUp } from "lucide-react";
 import { generateSingleLLMResponse } from "@/app/actions";
 import * as XLSX from 'xlsx';
 import { useLanguage } from "@/lib/LanguageContext";
@@ -187,7 +187,13 @@ const DraggableHeader: FC<{ header: any }> = ({ header }) => {
           {{ asc: ' ▲', desc: ' ▼' }[header.column.getIsSorted() as string] ?? null}
         </div>
       </div>
-      <div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className={`absolute top-0 right-0 h-full w-1 bg-primary/20 opacity-0 group-hover:opacity-100 cursor-col-resize user-select-none`} />
+      {header.column.getCanResize() && (
+        <div 
+          onMouseDown={header.getResizeHandler()} 
+          onTouchStart={header.getResizeHandler()} 
+          className={`absolute top-0 right-0 h-full w-2 bg-primary cursor-col-resize select-none touch-none ${header.column.getIsResizing() ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} 
+        />
+      )}
     </TableHead>
   );
 };
@@ -232,9 +238,9 @@ export function Step4_Results() {
   accessorKey: 'question',
       header: t('question'),
       cell: info => <div className="font-medium text-sm p-2">{info.getValue<string>()}</div>,
-      size: 450,
-      minSize: 200,
-      maxSize: 800,
+      size: Math.floor(typeof window !== 'undefined' ? window.innerWidth * 0.2 : 300),
+      minSize: 150,
+      maxSize: 1200,
     },
     ...validatedConfigs.map(config => ({
       accessorKey: config.provider,
@@ -446,10 +452,25 @@ export function Step4_Results() {
     }
   };
 
+  const scrollToBottom = () => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="space-y-4 w-full">
-      <h2 className="text-2xl font-bold">{t('step4Title')}</h2>
-      <p className="text-slate-600">{t('step4Description')}</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">{t('step4Title')}</h2>
+          <p className="text-slate-600">{t('step4Description')}</p>
+        </div>
+        <Button variant="outline" size="icon" onClick={scrollToBottom} title={t('scrollToBottom')}>
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+      </div>
       
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 p-4 rounded-lg border">
         <div className="relative w-full md:w-1/3">
@@ -516,6 +537,13 @@ export function Step4_Results() {
           </Table>
         </DndContext>
       </div>
+      
+      <div className="flex justify-end">
+        <Button variant="outline" size="icon" onClick={scrollToTop} title={t('scrollToTop')}>
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+      </div>
+      
       <ResultDetailSheet />
     </div>
   );

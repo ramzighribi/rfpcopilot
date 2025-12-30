@@ -171,6 +171,10 @@ export const translations = {
     selectAtLeastOneSheet: "Sélectionnez au moins un onglet à traiter.",
     defineQuestionAnswerColumns: "Définissez les colonnes Question et Réponse pour au moins un onglet sélectionné.",
     startGenerationToContinue: "Lancez la génération pour continuer.",
+    
+    // Scroll buttons
+    scrollToBottom: "Aller en bas",
+    scrollToTop: "Aller en haut",
   },
   en: {
     // General
@@ -342,6 +346,10 @@ export const translations = {
     selectAtLeastOneSheet: "Select at least one sheet to process.",
     defineQuestionAnswerColumns: "Define Question and Answer columns for at least one selected sheet.",
     startGenerationToContinue: "Start generation to continue.",
+    
+    // Scroll buttons
+    scrollToBottom: "Go to bottom",
+    scrollToTop: "Go to top",
   }
 } as const;
 
