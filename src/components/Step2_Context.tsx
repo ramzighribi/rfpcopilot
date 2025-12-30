@@ -344,51 +344,7 @@ export function Step2_Context() {
                           </div>
                         </div>
 
-                        {/* Aperçu des premières lignes */}
-                        {sheet.rawData && sheet.rawData.length > 0 && (
-                          <div className="bg-slate-50 border rounded-md p-3">
-                            <p className="text-sm font-medium text-slate-700 mb-2">
-                              {t('rowPreview')} - {t('headerRowLabel')} {sheet.headerRow} {t('headerRowUsed')} :
-                            </p>
-                            <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-                              <table className="text-xs border-collapse w-full">
-                                <tbody>
-                                  {sheet.rawData.slice(0, Math.max(15, sheet.headerRow + 5)).map((row, rowIdx) => {
-                                    const excelRowNumber = rowIdx + 1;
-                                    const isHeaderRow = excelRowNumber === sheet.headerRow;
-                                    const isDataRow = excelRowNumber > sheet.headerRow;
-                                    return (
-                                      <tr 
-                                        key={rowIdx} 
-                                        className={cn(
-                                          isHeaderRow && 'bg-green-100 font-semibold',
-                                          !isHeaderRow && !isDataRow && 'bg-slate-100 text-slate-400'
-                                        )}
-                                      >
-                                        <td className={cn(
-                                          "border px-2 py-1 font-medium text-center w-12",
-                                          isHeaderRow ? "bg-green-200 text-green-800" : "bg-slate-200 text-slate-600"
-                                        )}>
-                                          {excelRowNumber}
-                                        </td>
-                                        {(row as any[]).slice(0, 8).map((cell, cellIdx) => (
-                                          <td key={cellIdx} className="border px-2 py-1 max-w-[150px] truncate">
-                                            {cell?.toString() || <span className="text-slate-300">-</span>}
-                                          </td>
-                                        ))}
-                                        {(row as any[]).length > 8 && (
-                                          <td className="border px-2 py-1 text-slate-400">...</td>
-                                        )}
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Mapping des colonnes */}
+                        {/* Mapping des colonnes - AVANT l'aperçu */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="text-sm font-medium">{t('questionColumn')}</label>
@@ -439,6 +395,50 @@ export function Step2_Context() {
                             </Select>
                           </div>
                         </div>
+
+                        {/* Aperçu des premières lignes - APRÈS les colonnes */}
+                        {sheet.rawData && sheet.rawData.length > 0 && (
+                          <div className="bg-slate-50 border rounded-md p-3">
+                            <p className="text-sm font-medium text-slate-700 mb-2">
+                              {t('rowPreview')} - {t('headerRowLabel')} {sheet.headerRow} {t('headerRowUsed')} :
+                            </p>
+                            <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                              <table className="text-xs border-collapse w-full">
+                                <tbody>
+                                  {sheet.rawData.slice(0, Math.max(15, sheet.headerRow + 5)).map((row, rowIdx) => {
+                                    const excelRowNumber = rowIdx + 1;
+                                    const isHeaderRow = excelRowNumber === sheet.headerRow;
+                                    const isDataRow = excelRowNumber > sheet.headerRow;
+                                    return (
+                                      <tr 
+                                        key={rowIdx} 
+                                        className={cn(
+                                          isHeaderRow && 'bg-green-100 font-semibold',
+                                          !isHeaderRow && !isDataRow && 'bg-slate-100 text-slate-400'
+                                        )}
+                                      >
+                                        <td className={cn(
+                                          "border px-2 py-1 font-medium text-center w-12",
+                                          isHeaderRow ? "bg-green-200 text-green-800" : "bg-slate-200 text-slate-600"
+                                        )}>
+                                          {excelRowNumber}
+                                        </td>
+                                        {(row as any[]).slice(0, 8).map((cell, cellIdx) => (
+                                          <td key={cellIdx} className="border px-2 py-1 max-w-[150px] truncate">
+                                            {cell?.toString() || <span className="text-slate-300">-</span>}
+                                          </td>
+                                        ))}
+                                        {(row as any[]).length > 8 && (
+                                          <td className="border px-2 py-1 text-slate-400">...</td>
+                                        )}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
