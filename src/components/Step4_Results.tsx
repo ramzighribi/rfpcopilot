@@ -333,38 +333,47 @@ export function Step4_Results() {
       setBatchRegenParams({...batchRegenParams, personas: [...current, value] });
     }
   };
+  
+  // Calculate column sizes to fill screen width
+  const numProviders = validatedConfigs.length || 1;
+  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1400;
+  const fixedColumnsWidth = 60 + 120 + 180 + 120; // rowNumber + sheet + selectedAnswer + status
+  const remainingWidth = Math.max(screenWidth - fixedColumnsWidth - 50, 600); // -50 for padding
+  const questionWidth = Math.floor(remainingWidth * 0.25); // 25% for question
+  const providerWidth = Math.floor((remainingWidth * 0.75) / numProviders); // 75% split among providers
+
   const columns = useMemo<ColumnDef<GenerationResult, any>[]>(() => [
     {
       id: 'rowNumber',
       header: t('rowNumber'),
       cell: info => <div className="text-center text-muted-foreground">{info.row.index + 1}</div>,
-      size: 50,
+      size: 60,
       minSize: 40,
-      maxSize: 80,
+      maxSize: 100,
     },
     {
       accessorKey: 'sheetName',
       header: t('sheet'),
       cell: info => <div className="text-sm text-muted-foreground px-2">{info.getValue<string>()}</div>,
-      size: 100,
+      size: 120,
       minSize: 60,
-      maxSize: 200,
+      maxSize: 300,
     },
     {
       accessorKey: 'question',
       header: t('question'),
       cell: info => <div className="font-medium text-sm p-2 truncate" title={info.getValue<string>()}>{info.getValue<string>()}</div>,
-      size: 150,
-      minSize: 80,
-      maxSize: 500,
+      size: questionWidth,
+      minSize: 100,
+      maxSize: 1200,
     },
     ...validatedConfigs.map(config => ({
       accessorKey: config.provider,
       header: config.provider,
       cell: (info: any) => <div className="text-xs whitespace-pre-wrap font-mono p-2">{(info.getValue() || 'N/A')}</div>,
-      size: 300,
-      minSize: 100,
-      maxSize: 800,
+      size: providerWidth,
+      minSize: 150,
+      maxSize: 1500,
     })),
     {
       accessorKey: 'selectedAnswer',
@@ -389,9 +398,9 @@ export function Step4_Results() {
           </Select>
         );
       },
-      size: 160,
-      minSize: 120,
-      maxSize: 250,
+      size: 180,
+      minSize: 140,
+      maxSize: 300,
     },
     {
       accessorKey: 'status',
@@ -410,11 +419,11 @@ export function Step4_Results() {
         };
         return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
       },
-      size: 100,
-      minSize: 70,
-      maxSize: 150,
+      size: 120,
+      minSize: 80,
+      maxSize: 200,
     },
-  ], [validatedConfigs, t]);
+  ], [validatedConfigs, t, questionWidth, providerWidth]);
 
   const columnIds = useMemo(() => columns.map((c: any) => c.id || c.accessorKey as string), [columns]);
 
