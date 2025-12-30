@@ -257,13 +257,12 @@ const DraggableHeader: FC<{ header: any }> = ({ header }) => {
           {{ asc: ' ▲', desc: ' ▼' }[header.column.getIsSorted() as string] ?? null}
         </div>
       </div>
-      {header.column.getCanResize() && (
-        <div 
-          onMouseDown={header.getResizeHandler()} 
-          onTouchStart={header.getResizeHandler()} 
-          className={`absolute top-0 right-0 h-full w-2 bg-primary cursor-col-resize select-none touch-none ${header.column.getIsResizing() ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} 
-        />
-      )}
+      <div 
+        onMouseDown={header.getResizeHandler()} 
+        onTouchStart={header.getResizeHandler()} 
+        className={`absolute top-0 right-0 h-full w-4 bg-blue-500 cursor-col-resize select-none touch-none hover:bg-blue-600 ${header.column.getIsResizing() ? 'opacity-100 bg-blue-700' : 'opacity-0 group-hover:opacity-70'}`} 
+        style={{ touchAction: 'none' }}
+      />
     </TableHead>
   );
 };
@@ -316,33 +315,33 @@ export function Step4_Results() {
       id: 'rowNumber',
       header: t('rowNumber'),
       cell: info => <div className="text-center text-muted-foreground">{info.row.index + 1}</div>,
-      size: 60,
+      size: 50,
       minSize: 40,
-      maxSize: 100,
+      maxSize: 80,
     },
     {
       accessorKey: 'sheetName',
       header: t('sheet'),
       cell: info => <div className="text-sm text-muted-foreground px-2">{info.getValue<string>()}</div>,
-      size: 120,
-      minSize: 80,
-      maxSize: 250,
+      size: 100,
+      minSize: 60,
+      maxSize: 200,
     },
     {
       accessorKey: 'question',
       header: t('question'),
-      cell: info => <div className="font-medium text-sm p-2">{info.getValue<string>()}</div>,
-      size: 200,
-      minSize: 100,
-      maxSize: 600,
+      cell: info => <div className="font-medium text-sm p-2 truncate" title={info.getValue<string>()}>{info.getValue<string>()}</div>,
+      size: 150,
+      minSize: 80,
+      maxSize: 500,
     },
     ...validatedConfigs.map(config => ({
       accessorKey: config.provider,
       header: config.provider,
       cell: (info: any) => <div className="text-xs whitespace-pre-wrap font-mono p-2">{(info.getValue() || 'N/A')}</div>,
-      size: 500,
-      minSize: 200,
-      maxSize: 1000,
+      size: 300,
+      minSize: 100,
+      maxSize: 800,
     })),
     {
       accessorKey: 'selectedAnswer',
@@ -357,7 +356,7 @@ export function Step4_Results() {
         };
         return (
           <Select value={row.selectedAnswer || '__auto__'} onValueChange={handleSelect}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('chooseProvider')} /></SelectTrigger>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder={t('chooseProvider')} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__auto__">{t('firstNonEmpty')}</SelectItem>
               {validatedProviders.map(p => (
@@ -367,9 +366,9 @@ export function Step4_Results() {
           </Select>
         );
       },
-      size: 200,
-      minSize: 150,
-      maxSize: 300,
+      size: 160,
+      minSize: 120,
+      maxSize: 250,
     },
     {
       accessorKey: 'status',
@@ -388,9 +387,9 @@ export function Step4_Results() {
         };
         return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
       },
-      size: 120,
-      minSize: 80,
-      maxSize: 200,
+      size: 100,
+      minSize: 70,
+      maxSize: 150,
     },
   ], [validatedConfigs, t]);
 
@@ -410,6 +409,7 @@ export function Step4_Results() {
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     columnResizeMode: 'onChange',
+    enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
