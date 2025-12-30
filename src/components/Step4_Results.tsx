@@ -224,31 +224,32 @@ export function Step4_Results() {
       header: t('rowNumber'),
       cell: info => <div className="text-center text-muted-foreground">{info.row.index + 1}</div>,
       size: 60,
-      enableResizing: false,
+      minSize: 40,
+      maxSize: 100,
     },
     {
       accessorKey: 'sheetName',
       header: t('sheet'),
       cell: info => <div className="text-sm text-muted-foreground px-2">{info.getValue<string>()}</div>,
-      size: 140,
-      minSize: 100,
-      maxSize: 200,
+      size: 120,
+      minSize: 80,
+      maxSize: 250,
     },
     {
-  accessorKey: 'question',
+      accessorKey: 'question',
       header: t('question'),
       cell: info => <div className="font-medium text-sm p-2">{info.getValue<string>()}</div>,
-      size: Math.floor(typeof window !== 'undefined' ? window.innerWidth * 0.2 : 300),
-      minSize: 150,
-      maxSize: 1200,
+      size: 200,
+      minSize: 100,
+      maxSize: 600,
     },
     ...validatedConfigs.map(config => ({
       accessorKey: config.provider,
       header: config.provider,
       cell: (info: any) => <div className="text-xs whitespace-pre-wrap font-mono p-2">{(info.getValue() || 'N/A')}</div>,
-      size: 400,
-      minSize: 150,
-      maxSize: 700,
+      size: 500,
+      minSize: 200,
+      maxSize: 1000,
     })),
     {
       accessorKey: 'selectedAnswer',
@@ -273,9 +274,9 @@ export function Step4_Results() {
           </Select>
         );
       },
-      size: 220,
-      minSize: 180,
-      maxSize: 260,
+      size: 200,
+      minSize: 150,
+      maxSize: 300,
     },
     {
       accessorKey: 'status',
@@ -294,8 +295,9 @@ export function Step4_Results() {
         };
         return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
       },
-      size: 150,
-      enableResizing: false,
+      size: 120,
+      minSize: 80,
+      maxSize: 200,
     },
   ], [validatedConfigs, t]);
 
