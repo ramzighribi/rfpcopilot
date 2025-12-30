@@ -127,10 +127,10 @@ function ResultDetailSheet() {
             <Card>
               <CardHeader><CardTitle>{t('chosenResponse')}</CardTitle></CardHeader>
               <CardContent>
-                <Select value={editableResult.selectedAnswer || ''} onValueChange={(v) => handleFieldChange('selectedAnswer', v)}>
+                <Select value={editableResult.selectedAnswer || '_auto_'} onValueChange={(v) => handleFieldChange('selectedAnswer', v === '_auto_' ? '' : v)}>
                   <SelectTrigger><SelectValue placeholder={t('chooseProvider')} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{t('firstNonEmpty')}</SelectItem>
+                    <SelectItem value="_auto_">{t('firstNonEmpty')}</SelectItem>
                     {llmConfigs.filter(c => c.isValidated).map(c => (
                       <SelectItem key={c.id} value={c.provider}>{c.provider}</SelectItem>
                     ))}
