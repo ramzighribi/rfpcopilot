@@ -137,6 +137,10 @@ export const translations = {
     batchRegenComplete: "Régénération en masse terminée !",
     clickToViewEdit: "Cliquez sur une ligne pour la voir/modifier",
     
+    // Languages
+    spanish: "Espagnol",
+    italian: "Italien",
+    
     // Personas
     personaD365Sales: "Expert Dynamics 365 Sales",
     personaD365CustomerInsights: "Expert Dynamics 365 Customer Insights",
@@ -146,6 +150,20 @@ export const translations = {
     personaIntegrationArchitect: "Architecte d'Intégration",
     personaAzureSecurity: "Expert Sécurité Azure",
     personaComplianceGDPR: "Expert Conformité et RGPD",
+    personaCopilotStudio: "Expert Copilot Studio",
+    personaDataScientist: "Microsoft Data Scientist",
+    personaAIAzure: "Expert AI Azure",
+    searchPersona: "Rechercher un persona...",
+    noPersonaFound: "Aucun persona trouvé",
+    
+    // Generated Prompt
+    generatedPrompt: "Prompt Généré",
+    generatedPromptHelp: "Ce prompt sera utilisé pour la génération. Vous pouvez le modifier si besoin.",
+    promptYouAre: "Vous êtes",
+    promptExpert: "un expert",
+    promptRespondIn: "Répondez en",
+    promptResponseLength: "Longueur de réponse attendue",
+    promptTask: "Répondez à la question suivante de manière professionnelle et structurée.",
     
     // Navigation help
     validateAtLeastOneLLM: "Validez au moins une configuration LLM pour continuer.",
@@ -299,6 +317,24 @@ export const translations = {
     personaIntegrationArchitect: "Integration Architect",
     personaAzureSecurity: "Azure Security Expert",
     personaComplianceGDPR: "Compliance and GDPR Expert",
+    personaCopilotStudio: "Copilot Studio Expert",
+    personaDataScientist: "Microsoft Data Scientist",
+    personaAIAzure: "AI Azure Expert",
+    searchPersona: "Search persona...",
+    noPersonaFound: "No persona found",
+    
+    // Languages
+    spanish: "Spanish",
+    italian: "Italian",
+    
+    // Generated Prompt
+    generatedPrompt: "Generated Prompt",
+    generatedPromptHelp: "This prompt will be used for generation. You can modify it if needed.",
+    promptYouAre: "You are",
+    promptExpert: "an expert",
+    promptRespondIn: "Respond in",
+    promptResponseLength: "Expected response length",
+    promptTask: "Answer the following question professionally and in a structured manner.",
     
     // Navigation help
     validateAtLeastOneLLM: "Validate at least one LLM configuration to continue.",

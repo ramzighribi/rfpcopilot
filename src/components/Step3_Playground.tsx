@@ -8,11 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useState, useRef, useEffect } from "react";
-import { Loader2, FileText } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Loader2, FileText, X, Search, Check } from "lucide-react";
 import { generateSingleLLMResponse } from "@/app/actions";
 import { useLanguage } from "@/lib/LanguageContext";
+import { cn } from "@/lib/utils";
 
 export function Step3_Playground() {
   const { 
@@ -22,6 +25,8 @@ export function Step3_Playground() {
   } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [personaSearch, setPersonaSearch] = useState('');
+  const [isPersonaDropdownOpen, setIsPersonaDropdownOpen] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
 
@@ -35,13 +40,65 @@ export function Step3_Playground() {
     { key: 'personaIntegrationArchitect', value: "Architecte d'Intégration" },
     { key: 'personaAzureSecurity', value: 'Expert Sécurité Azure' },
     { key: 'personaComplianceGDPR', value: 'Expert Conformité et RGPD' },
+    { key: 'personaCopilotStudio', value: 'Expert Copilot Studio' },
+    { key: 'personaDataScientist', value: 'Microsoft Data Scientist' },
+    { key: 'personaAIAzure', value: 'AI Azure Expert' },
   ];
+
+  // Selected personas (array)
+  const selectedPersonas: string[] = generationParams.personas || [];
+
+  // Filtered personas based on search
+  const filteredPersonas = useMemo(() => {
+    if (!personaSearch.trim()) return personas;
+    const search = personaSearch.toLowerCase();
+    return personas.filter(p => 
+      t(p.key as any).toLowerCase().includes(search) || 
+      p.value.toLowerCase().includes(search)
+    );
+  }, [personaSearch, t]);
+
+  // Toggle persona selection
+  const togglePersona = (value: string) => {
+    const current = selectedPersonas;
+    if (current.includes(value)) {
+      setGenerationParams({ personas: current.filter(p => p !== value) });
+    } else {
+      setGenerationParams({ personas: [...current, value] });
+    }
+  };
+
+  // Generate prompt based on parameters
+  const generatedPrompt = useMemo(() => {
+    const personaNames = selectedPersonas.map(p => {
+      const persona = personas.find(per => per.value === p);
+      return persona ? t(persona.key as any) : p;
+    });
+    
+    const lengthMap: Record<string, string> = {
+      'Courte': t('short'),
+      'Moyenne': t('medium'),
+      'Longue': t('long'),
+    };
+
+    let prompt = `${t('promptYouAre')} ${personaNames.length > 0 ? personaNames.join(', ') : t('promptExpert')}.\n`;
+    prompt += `${t('promptRespondIn')} ${generationParams.language}.\n`;
+    prompt += `${t('promptResponseLength')}: ${lengthMap[generationParams.responseLength] || generationParams.responseLength}.\n`;
+    prompt += `${t('promptTask')}`;
+    
+    return prompt;
+  }, [selectedPersonas, generationParams.language, generationParams.responseLength, t]);
 
   useEffect(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [generationLogs]);
+
+  // Update generationParams with generated prompt
+  useEffect(() => {
+    setGenerationParams({ generatedPrompt });
+  }, [generatedPrompt]);
   
   const handleGenerate = async (withLog: boolean) => {
     if (!projectData) { toast.error(t('noFileLoaded')); return; }
@@ -131,11 +188,153 @@ export function Step3_Playground() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3"><Label>{t('responseLanguage')}</Label><RadioGroup value={generationParams.language} onValueChange={(v) => setGenerationParams({ language: v })} className="flex space-x-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="lang-fr" /><Label htmlFor="lang-fr">{t('french')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="lang-en" /><Label htmlFor="lang-en">{t('english')}</Label></div></RadioGroup></div>
-                <div className="space-y-3"><Label>{t('responseLength')}</Label><RadioGroup value={generationParams.responseLength} onValueChange={(v) => setGenerationParams({ responseLength: v })} className="flex space-x-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="len-s" /><Label htmlFor="len-s">{t('short')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="len-m" /><Label htmlFor="len-m">{t('medium')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="len-l" /><Label htmlFor="len-l">{t('long')}</Label></div></RadioGroup></div>
+                {/* Response Language */}
+                <div className="space-y-3">
+                  <Label>{t('responseLanguage')}</Label>
+                  <RadioGroup 
+                    value={generationParams.language} 
+                    onValueChange={(v) => setGenerationParams({ language: v })} 
+                    className="flex flex-wrap gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Français" id="lang-fr" />
+                      <Label htmlFor="lang-fr">{t('french')}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Anglais" id="lang-en" />
+                      <Label htmlFor="lang-en">{t('english')}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Espagnol" id="lang-es" />
+                      <Label htmlFor="lang-es">{t('spanish')}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Italien" id="lang-it" />
+                      <Label htmlFor="lang-it">{t('italian')}</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                
+                {/* Response Length */}
+                <div className="space-y-3">
+                  <Label>{t('responseLength')}</Label>
+                  <RadioGroup 
+                    value={generationParams.responseLength} 
+                    onValueChange={(v) => setGenerationParams({ responseLength: v })} 
+                    className="flex space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Courte" id="len-s" />
+                      <Label htmlFor="len-s">{t('short')}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Moyenne" id="len-m" />
+                      <Label htmlFor="len-m">{t('medium')}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Longue" id="len-l" />
+                      <Label htmlFor="len-l">{t('long')}</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
               </div>
-              <div className="space-y-2"><Label>{t('persona')}</Label><Select value={generationParams.persona} onValueChange={(v) => setGenerationParams({persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p.value} value={p.value}>{t(p.key as any)}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>{t('additionalInstructions')}</Label><Textarea placeholder={t('additionalInstructionsPlaceholder')} value={generationParams.instructions} onChange={(e) => setGenerationParams({instructions: e.target.value})} /></div>
+
+              {/* Persona Multi-Select with Search */}
+              <div className="space-y-2">
+                <Label>{t('persona')}</Label>
+                
+                {/* Selected personas as badges */}
+                {selectedPersonas.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedPersonas.map(p => {
+                      const persona = personas.find(per => per.value === p);
+                      return (
+                        <Badge 
+                          key={p} 
+                          variant="secondary" 
+                          className="flex items-center gap-1 bg-blue-100 text-blue-800 hover:bg-blue-200"
+                        >
+                          {persona ? t(persona.key as any) : p}
+                          <X 
+                            className="w-3 h-3 cursor-pointer hover:text-red-600" 
+                            onClick={() => togglePersona(p)}
+                          />
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Search and dropdown */}
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder={t('searchPersona')}
+                      value={personaSearch}
+                      onChange={(e) => setPersonaSearch(e.target.value)}
+                      onFocus={() => setIsPersonaDropdownOpen(true)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {isPersonaDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setIsPersonaDropdownOpen(false)}
+                      />
+                      <div className="absolute z-20 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {filteredPersonas.length === 0 ? (
+                          <div className="p-3 text-sm text-slate-500 text-center">
+                            {t('noPersonaFound')}
+                          </div>
+                        ) : (
+                          filteredPersonas.map(p => {
+                            const isSelected = selectedPersonas.includes(p.value);
+                            return (
+                              <div
+                                key={p.value}
+                                onClick={() => togglePersona(p.value)}
+                                className={cn(
+                                  "flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-slate-100",
+                                  isSelected && "bg-blue-50"
+                                )}
+                              >
+                                <span className={cn(isSelected && "font-medium text-blue-700")}>
+                                  {t(p.key as any)}
+                                </span>
+                                {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Generated Prompt (editable) */}
+              <div className="space-y-2">
+                <Label>{t('generatedPrompt')}</Label>
+                <Textarea 
+                  value={generationParams.generatedPrompt || generatedPrompt}
+                  onChange={(e) => setGenerationParams({ generatedPrompt: e.target.value })}
+                  className="min-h-[100px] font-mono text-sm bg-slate-50"
+                />
+                <p className="text-xs text-slate-500">{t('generatedPromptHelp')}</p>
+              </div>
+
+              {/* Additional Instructions */}
+              <div className="space-y-2">
+                <Label>{t('additionalInstructions')}</Label>
+                <Textarea 
+                  placeholder={t('additionalInstructionsPlaceholder')} 
+                  value={generationParams.instructions} 
+                  onChange={(e) => setGenerationParams({instructions: e.target.value})} 
+                />
+              </div>
             </>
           )}
           

@@ -78,7 +78,8 @@ export const useProjectStore = create<ProjectState>()(
       generationParams: {
         language: 'Français',
         responseLength: 'Moyenne',
-        persona: 'Expert Dynamics 365 Sales',
+        personas: [] as string[],
+        generatedPrompt: '',
         instructions: '',
       },
       results: [],

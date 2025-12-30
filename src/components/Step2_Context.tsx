@@ -159,7 +159,7 @@ export function Step2_Context() {
                       selectedSheet === sheet.name && isEnabled && "ring-2 ring-blue-500 ring-offset-2"
                     )}
                   >
-                    {/* Bouton toggle enabled */}
+                    {/* Bouton toggle enabled - un seul badge */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -169,23 +169,13 @@ export function Step2_Context() {
                         }
                       }}
                       className={cn(
-                        "absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold transition-all",
-                        isEnabled ? "bg-blue-500 hover:bg-blue-600" : "bg-slate-400 hover:bg-slate-500"
+                        "absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold transition-all",
+                        isEnabled ? "bg-red-500 hover:bg-red-600" : "bg-slate-400 hover:bg-slate-500"
                       )}
                       title={isEnabled ? t('clickToDisable') : t('clickToEnable')}
                     >
-                      {isEnabled ? <Check className="w-4 h-4" /> : <span className="text-xs">+</span>}
+                      {isEnabled ? <span className="text-sm font-bold">−</span> : <span className="text-sm font-bold">+</span>}
                     </button>
-
-                    {/* Badge de statut (seulement si enabled) */}
-                    {isEnabled && (
-                      <div className={cn(
-                        "absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                        isComplete ? "bg-green-500" : "bg-amber-500"
-                      )}>
-                        {isComplete ? <Check className="w-4 h-4" /> : "!"}
-                      </div>
-                    )}
 
                     {/* Nom de l'onglet */}
                     <div className="flex items-center gap-2 mb-3">
