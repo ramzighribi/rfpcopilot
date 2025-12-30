@@ -246,21 +246,44 @@ function ResultDetailSheet() {
 // --- Le composant d'en-tête de colonne interactif ---
 const DraggableHeader: FC<{ header: any }> = ({ header }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: header.column.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, width: header.getSize() };
+  const style = { 
+    transform: CSS.Transform.toString(transform), 
+    transition, 
+    width: header.getSize(),
+    minWidth: header.column.columnDef.minSize,
+    maxWidth: header.column.columnDef.maxSize,
+  };
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    header.getResizeHandler()(e);
+  };
+
+  const handleResizeTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    header.getResizeHandler()(e);
+  };
 
   return (
-    <TableHead key={header.id} colSpan={header.colSpan} style={style} ref={setNodeRef} className="relative group bg-slate-50">
-      <div {...attributes} {...listeners} className="flex items-center justify-center cursor-grab py-4 px-2">
-        <GripVertical className="h-4 w-4 mr-2 text-muted-foreground" />
-        <div className="flex-grow font-bold text-slate-700" onClick={header.column.getToggleSortingHandler()}>
+    <TableHead 
+      key={header.id} 
+      colSpan={header.colSpan} 
+      style={style} 
+      ref={setNodeRef} 
+      className="relative group bg-slate-50 border-r"
+    >
+      <div {...attributes} {...listeners} className="flex items-center justify-center cursor-grab py-4 px-2 pr-6">
+        <GripVertical className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+        <div className="flex-grow font-bold text-slate-700 truncate" onClick={header.column.getToggleSortingHandler()}>
           {flexRender(header.column.columnDef.header, header.getContext())}
           {{ asc: ' ▲', desc: ' ▼' }[header.column.getIsSorted() as string] ?? null}
         </div>
       </div>
       <div 
-        onMouseDown={header.getResizeHandler()} 
-        onTouchStart={header.getResizeHandler()} 
-        className={`absolute top-0 right-0 h-full w-4 bg-blue-500 cursor-col-resize select-none touch-none hover:bg-blue-600 ${header.column.getIsResizing() ? 'opacity-100 bg-blue-700' : 'opacity-0 group-hover:opacity-70'}`} 
+        onMouseDown={handleResizeMouseDown}
+        onTouchStart={handleResizeTouchStart}
+        className={`absolute top-0 right-0 h-full w-3 cursor-col-resize select-none z-10 ${header.column.getIsResizing() ? 'bg-blue-600' : 'bg-blue-400 opacity-0 group-hover:opacity-100'}`} 
         style={{ touchAction: 'none' }}
       />
     </TableHead>
@@ -651,7 +674,7 @@ export function Step4_Results() {
       
       <div className="border rounded-md overflow-x-auto">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <Table style={{ width: table.getTotalSize() }}>
+          <Table style={{ width: table.getTotalSize(), tableLayout: 'fixed' }}>
             <TableHeader>
               {table.getHeaderGroups().map(headerGroup => (
                 <TableRow key={headerGroup.id}>
@@ -665,7 +688,15 @@ export function Step4_Results() {
               {table.getRowModel().rows.map(row => (
                 <TableRow key={row.id} onClick={() => setSelectedResultIndex(row.index)} className={`cursor-pointer ${getRowBgColor(row.original.status)}`}>
                   {row.getVisibleCells().map(cell => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="align-top border-r">
+                    <TableCell 
+                      key={cell.id} 
+                      style={{ 
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.columnDef.minSize,
+                        maxWidth: cell.column.columnDef.maxSize,
+                      }} 
+                      className="align-top border-r"
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
