@@ -12,9 +12,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect, useMemo, FC, useRef } from "react";
 import { toast } from "sonner";
-import { Loader2, GripVertical, Search, ArrowDown, ArrowUp } from "lucide-react";
+import { Loader2, GripVertical, Search, ArrowDown, ArrowUp, X } from "lucide-react";
 import { generateSingleLLMResponse } from "@/app/actions";
 import * as XLSX from 'xlsx';
 import { useLanguage } from "@/lib/LanguageContext";
@@ -29,10 +30,19 @@ import {
 import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Personas with translation keys (same as Step3)
 const personas = [
-  'Expert Dynamics 365 Sales', 'Expert Dynamics 365 Customer Insights', 'Expert Dynamics 365 Customer Service',
-  'Expert Dynamics 365 Contact Center', 'Expert Power Platform', 'Architecte d\'Intégration', 
-  'Expert Sécurité Azure', 'Expert Conformité et RGPD'
+  { key: 'personaD365Sales', value: 'Expert Dynamics 365 Sales' },
+  { key: 'personaD365CustomerInsights', value: 'Expert Dynamics 365 Customer Insights' },
+  { key: 'personaD365CustomerService', value: 'Expert Dynamics 365 Customer Service' },
+  { key: 'personaD365ContactCenter', value: 'Expert Dynamics 365 Contact Center' },
+  { key: 'personaPowerPlatform', value: 'Expert Power Platform' },
+  { key: 'personaIntegrationArchitect', value: "Architecte d'Intégration" },
+  { key: 'personaAzureSecurity', value: 'Expert Sécurité Azure' },
+  { key: 'personaComplianceGDPR', value: 'Expert Conformité et RGPD' },
+  { key: 'personaCopilotStudio', value: 'Expert Copilot Studio' },
+  { key: 'personaDataScientist', value: 'Microsoft Data Scientist' },
+  { key: 'personaAIAzure', value: 'AI Azure Expert' },
 ];
 
 // --- Le panneau de détail pour l'édition d'une ligne ---
@@ -46,6 +56,30 @@ function ResultDetailSheet() {
   const [editableResult, setEditableResult] = useState<GenerationResult | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenParams, setRegenParams] = useState(generationParams);
+  const [regenPersonaSearch, setRegenPersonaSearch] = useState('');
+
+  // Selected personas for regeneration
+  const regenSelectedPersonas: string[] = regenParams.personas || [];
+
+  // Filtered personas based on search
+  const regenFilteredPersonas = useMemo(() => {
+    if (!regenPersonaSearch.trim()) return personas;
+    const search = regenPersonaSearch.toLowerCase();
+    return personas.filter(p => 
+      t(p.key as any).toLowerCase().includes(search) || 
+      p.value.toLowerCase().includes(search)
+    );
+  }, [regenPersonaSearch, t]);
+
+  // Toggle persona selection for regeneration
+  const toggleRegenPersona = (value: string) => {
+    const current = regenSelectedPersonas;
+    if (current.includes(value)) {
+      setRegenParams({...regenParams, personas: current.filter(p => p !== value) });
+    } else {
+      setRegenParams({...regenParams, personas: [...current, value] });
+    }
+  };
 
   useEffect(() => {
     if (selectedResultIndex !== null && results[selectedResultIndex]) {
@@ -152,12 +186,48 @@ function ResultDetailSheet() {
         <SheetFooter>
           <Dialog>
             <DialogTrigger asChild><Button variant="outline">{t('regenerate')}</Button></DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>{t('regenerationParams')}</DialogTitle></DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2"><Label>{t('responseLanguage')}</Label><RadioGroup value={regenParams.language} onValueChange={(v) => setRegenParams({...regenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="r-lang-fr" /><Label htmlFor="r-lang-fr">{t('french')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="r-lang-en" /><Label htmlFor="r-lang-en">{t('english')}</Label></div></RadioGroup></div>
                 <div className="space-y-2"><Label>{t('responseLength')}</Label><RadioGroup value={regenParams.responseLength} onValueChange={(v) => setRegenParams({...regenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="r-len-s" /><Label htmlFor="r-len-s">{t('short')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="r-len-m" /><Label htmlFor="r-len-m">{t('medium')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="r-len-l" /><Label htmlFor="r-len-l">{t('long')}</Label></div></RadioGroup></div>
-                <div className="space-y-2"><Label>{t('persona')}</Label><Select value={regenParams.persona} onValueChange={(v) => setRegenParams({...regenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2">
+                  <Label>{t('persona')}</Label>
+                  {regenSelectedPersonas.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {regenSelectedPersonas.map(p => {
+                        const persona = personas.find(per => per.value === p);
+                        return (
+                          <Badge key={p} variant="secondary" className="cursor-pointer" onClick={() => toggleRegenPersona(p)}>
+                            {persona ? t(persona.key as any) : p}
+                            <X className="h-3 w-3 ml-1" />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder={t('searchPersona')} 
+                      value={regenPersonaSearch} 
+                      onChange={(e) => setRegenPersonaSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                    {regenFilteredPersonas.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">{t('noPersonaFound')}</p>
+                    ) : (
+                      regenFilteredPersonas.map(p => (
+                        <div key={p.value} className="flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer" onClick={() => toggleRegenPersona(p.value)}>
+                          <Checkbox checked={regenSelectedPersonas.includes(p.value)} />
+                          <span className="text-sm">{t(p.key as any)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <DialogClose asChild><Button variant="ghost">{t('cancel')}</Button></DialogClose>
@@ -214,10 +284,33 @@ export function Step4_Results() {
   const [batchRegenParams, setBatchRegenParams] = useState(generationParams);
   const [batchRegenProgress, setBatchRegenProgress] = useState({ current: 0, total: 0 });
   const [isBatchRegenDialogOpen, setIsBatchRegenDialogOpen] = useState(false);
+  const [batchPersonaSearch, setBatchPersonaSearch] = useState('');
   
   const validatedConfigs = llmConfigs.filter(c => c.isValidated);
   const validatedProviders = validatedConfigs.map(c => c.provider);
 
+  // Selected personas for batch regeneration
+  const batchSelectedPersonas: string[] = batchRegenParams.personas || [];
+
+  // Filtered personas based on search for batch
+  const batchFilteredPersonas = useMemo(() => {
+    if (!batchPersonaSearch.trim()) return personas;
+    const search = batchPersonaSearch.toLowerCase();
+    return personas.filter(p => 
+      t(p.key as any).toLowerCase().includes(search) || 
+      p.value.toLowerCase().includes(search)
+    );
+  }, [batchPersonaSearch, t]);
+
+  // Toggle persona selection for batch regeneration
+  const toggleBatchPersona = (value: string) => {
+    const current = batchSelectedPersonas;
+    if (current.includes(value)) {
+      setBatchRegenParams({...batchRegenParams, personas: current.filter(p => p !== value) });
+    } else {
+      setBatchRegenParams({...batchRegenParams, personas: [...current, value] });
+    }
+  };
   const columns = useMemo<ColumnDef<GenerationResult, any>[]>(() => [
     {
       id: 'rowNumber',
@@ -421,10 +514,17 @@ export function Step4_Results() {
     for (let i = 0; i < rowsToRegen.length; i++) {
         const row = rowsToRegen[i];
         try {
-            const regeneratedResult = await generateSingleLLMResponse(row.question, llmConfigs, batchRegenParams);
+            const { result: regenResult } = await generateSingleLLMResponse(row.question, llmConfigs, batchRegenParams);
             const firstProvider = validatedProviders[0];
-            const initialSelected = firstProvider && (regeneratedResult as any)[firstProvider] ? firstProvider : (row.selectedAnswer || '');
-            newResults[row.originalIndex] = { ...(regeneratedResult as any), sheetName: row.sheetName, rowIndex: row.rowIndex, selectedAnswer: initialSelected } as any;
+            const initialSelected = firstProvider && regenResult[firstProvider] ? firstProvider : (row.selectedAnswer || '');
+            newResults[row.originalIndex] = { 
+              ...row,
+              ...regenResult, 
+              question: row.question,  // Preserve original question
+              sheetName: row.sheetName, 
+              rowIndex: row.rowIndex, 
+              selectedAnswer: initialSelected 
+            } as any;
         } catch (error) {
             toast.error(`Erreur sur la question: "${row.question.substring(0, 20)}..."`);
         }
@@ -487,7 +587,7 @@ export function Step4_Results() {
           </Select>
           <Dialog open={isBatchRegenDialogOpen} onOpenChange={setIsBatchRegenDialogOpen}>
             <DialogTrigger asChild><Button variant="outline">{t('batchRegenerate')}</Button></DialogTrigger>
-            <DialogContent onInteractOutside={(e) => { if(isBatchRegenerating) e.preventDefault() }}>
+            <DialogContent className="max-w-lg" onInteractOutside={(e) => { if(isBatchRegenerating) e.preventDefault() }}>
               <DialogHeader><DialogTitle>{t('batchRegenerate')}</DialogTitle></DialogHeader>
               {isBatchRegenerating ? (
                 <div className="py-4 space-y-4">
@@ -499,7 +599,43 @@ export function Step4_Results() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2"><Label>{t('responseLanguage')}</Label><RadioGroup value={batchRegenParams.language} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, language: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Français" id="br-lang-fr" /><Label htmlFor="br-lang-fr">{t('french')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Anglais" id="br-lang-en" /><Label htmlFor="br-lang-en">{t('english')}</Label></div></RadioGroup></div>
                     <div className="space-y-2"><Label>{t('responseLength')}</Label><RadioGroup value={batchRegenParams.responseLength} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, responseLength: v})}><div className="flex items-center space-x-2"><RadioGroupItem value="Courte" id="br-len-s" /><Label htmlFor="br-len-s">{t('short')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Moyenne" id="br-len-m" /><Label htmlFor="br-len-m">{t('medium')}</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="Longue" id="br-len-l" /><Label htmlFor="br-len-l">{t('long')}</Label></div></RadioGroup></div>
-                    <div className="space-y-2"><Label>{t('persona')}</Label><Select value={batchRegenParams.persona} onValueChange={(v) => setBatchRegenParams({...batchRegenParams, persona: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{personas.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2">
+                      <Label>{t('persona')}</Label>
+                      {batchSelectedPersonas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {batchSelectedPersonas.map(p => {
+                            const persona = personas.find(per => per.value === p);
+                            return (
+                              <Badge key={p} variant="secondary" className="cursor-pointer" onClick={() => toggleBatchPersona(p)}>
+                                {persona ? t(persona.key as any) : p}
+                                <X className="h-3 w-3 ml-1" />
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          placeholder={t('searchPersona')} 
+                          value={batchPersonaSearch} 
+                          onChange={(e) => setBatchPersonaSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                        {batchFilteredPersonas.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-2">{t('noPersonaFound')}</p>
+                        ) : (
+                          batchFilteredPersonas.map(p => (
+                            <div key={p.value} className="flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer" onClick={() => toggleBatchPersona(p.value)}>
+                              <Checkbox checked={batchSelectedPersonas.includes(p.value)} />
+                              <span className="text-sm">{t(p.key as any)}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <DialogFooter>
                       <Button variant="ghost" onClick={() => setIsBatchRegenDialogOpen(false)}>{t('cancel')}</Button>
