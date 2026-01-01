@@ -404,7 +404,7 @@ export function Step4_Results() {
     },
     {
       accessorKey: 'status',
-      header: t('status'),
+      header: () => <div className="text-center w-full">{t('status')}</div>,
       cell: info => {
         const status = info.getValue<GenerationResult['status']>();
         const getBadgeVariant = (s: GenerationResult['status']) => {
@@ -417,7 +417,7 @@ export function Step4_Results() {
           if (s === 'Refusée') return t('rejected');
           return t('doubt');
         };
-        return <div className="p-2 flex justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
+        return <div className="h-full flex items-center justify-center"><Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge></div>;
       },
       size: 120,
       minSize: 80,
@@ -704,7 +704,7 @@ export function Step4_Results() {
                         minWidth: cell.column.columnDef.minSize,
                         maxWidth: cell.column.columnDef.maxSize,
                       }} 
-                      className="align-top border-r"
+                      className={`border-r ${cell.column.id === 'status' ? 'align-middle text-center' : 'align-top'}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
